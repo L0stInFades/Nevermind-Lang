@@ -2,10 +2,10 @@
 
 use std::collections::HashSet;
 
-use nevermind_ast::{Expr, Stmt, Pattern, Parameter};
+use nevermind_ast::{Expr, Stmt, Pattern};
 
 use crate::symbol_table::SymbolTable;
-use crate::symbol::{Symbol, SymbolKind};
+use crate::symbol::Symbol;
 use crate::error::{NameError, Result};
 
 /// The name resolver
@@ -245,7 +245,7 @@ impl NameResolver {
                 // Resolve members
                 for member in members {
                     match member {
-                        nevermind_ast::ClassMember::Field { name, .. } => {
+                        nevermind_ast::stmt::ClassMember::Field { name, .. } => {
                             let field_symbol = Symbol::variable(
                                 name.clone(),
                                 false,
@@ -253,7 +253,7 @@ impl NameResolver {
                             );
                             self.symbol_table.declare(name.clone(), field_symbol)?;
                         }
-                        nevermind_ast::ClassMember::Method { name, params, body, .. } => {
+                        nevermind_ast::stmt::ClassMember::Method { name, params, body, .. } => {
                             let method_symbol = Symbol::function(name.clone(), params.len(), nevermind_common::Span::dummy());
                             self.symbol_table.declare(name.clone(), method_symbol)?;
 
@@ -414,47 +414,45 @@ impl NameResolver {
     /// Resolve a pattern
     fn resolve_pattern(&mut self, pattern: &Pattern) -> Result<()> {
         match pattern {
-            Pattern::Literal(_) => Ok(()),
+            Pattern::Literal { .. } => Ok(()),
             Pattern::Variable { name, .. } => {
                 // Declare pattern variable
                 let symbol = Symbol::variable(name.clone(), false, nevermind_common::Span::dummy());
                 self.symbol_table.declare(name.clone(), symbol)
             }
-            Pattern::Wildcard => Ok(()),
-            Pattern::Tuple(patterns) => {
+            Pattern::Wildcard { .. } => Ok(()),
+            Pattern::Tuple { patterns, .. } => {
                 for pat in patterns {
                     self.resolve_pattern(pat)?;
                 }
                 Ok(())
             }
-            Pattern::List(patterns) => {
+            Pattern::List { patterns, .. } => {
                 for pat in patterns {
                     self.resolve_pattern(pat)?;
                 }
                 Ok(())
             }
-            Pattern::Map(patterns) => {
-                for (_, pat) in patterns {
-                    self.resolve_pattern(pat)?;
+            Pattern::ListCons { head, tail, .. } => {
+                self.resolve_pattern(head)?;
+                self.resolve_pattern(tail)?;
+                Ok(())
+            }
+            Pattern::Struct { fields, .. } => {
+                for field in fields {
+                    self.resolve_pattern(&field.pattern)?;
                 }
                 Ok(())
             }
-            Pattern::Destructuring { name, fields, .. } => {
-                if let Some(name) = name {
-                    let symbol = Symbol::variable(name.clone(), false, nevermind_common::Span::dummy());
-                    self.symbol_table.declare(name.clone(), symbol)?;
-                }
-
-                for (_, pat) in fields {
-                    self.resolve_pattern(pat)?;
-                }
-
-                Ok(())
-            }
-            Pattern::Or(patterns) => {
+            Pattern::Or { patterns, .. } => {
                 for pat in patterns {
                     self.resolve_pattern(pat)?;
                 }
+                Ok(())
+            }
+            Pattern::Range { start, end, .. } => {
+                self.resolve_pattern(start)?;
+                self.resolve_pattern(end)?;
                 Ok(())
             }
         }
@@ -464,7 +462,7 @@ impl NameResolver {
     fn pattern_name(&self, pattern: &Pattern) -> Result<String> {
         match pattern {
             Pattern::Variable { name, .. } => Ok(name.clone()),
-            Pattern::Wildcard => Ok("_".to_string()),
+            Pattern::Wildcard { .. } => Ok("_".to_string()),
             _ => Ok("<pattern>".to_string()),
         }
     }
@@ -485,7 +483,8 @@ impl Default for NameResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nevermind_ast::{Expr, Stmt};
+    use nevermind_ast::{Expr, Stmt, Parameter};
+    use nevermind_ast::Literal;
 
     #[test]
     fn test_resolve_variable() {
@@ -497,7 +496,7 @@ mod tests {
             is_mutable: false,
             name: "x".to_string(),
             type_annotation: None,
-            value: Expr::Literal(nevermind_ast::Literal::Integer(42, nevermind_common::Span::dummy())),
+            value: Expr::Literal(Literal::Integer(42, nevermind_common::Span::dummy())),
             span: nevermind_common::Span::dummy(),
         };
 
@@ -545,7 +544,7 @@ mod tests {
                 },
             ],
             return_type: None,
-            body: Expr::Literal(nevermind_ast::Literal::Integer(0, nevermind_common::Span::dummy())),
+            body: Expr::Literal(Literal::Integer(0, nevermind_common::Span::dummy())),
             span: nevermind_common::Span::dummy(),
         };
 
@@ -565,7 +564,7 @@ mod tests {
             is_mutable: false,
             name: "x".to_string(),
             type_annotation: None,
-            value: Expr::Literal(nevermind_ast::Literal::Integer(10, nevermind_common::Span::dummy())),
+            value: Expr::Literal(Literal::Integer(10, nevermind_common::Span::dummy())),
             span: nevermind_common::Span::dummy(),
         };
 
@@ -580,7 +579,7 @@ mod tests {
                     is_mutable: false,
                     name: "y".to_string(),
                     type_annotation: None,
-                    value: Expr::Literal(nevermind_ast::Literal::Integer(20, nevermind_common::Span::dummy())),
+                    value: Expr::Literal(Literal::Integer(20, nevermind_common::Span::dummy())),
                     span: nevermind_common::Span::dummy(),
                 },
             ],
