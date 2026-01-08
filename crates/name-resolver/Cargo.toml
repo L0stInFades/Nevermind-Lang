@@ -1,0 +1,10 @@
+[package]
+name = "nevermind-name-resolver"
+version = "0.1.0"
+edition = "2021"
+description = "Name resolution for Nevermind"
+
+[dependencies]
+nevermind-common = { path = "../common" }
+nevermind-ast = { path = "../ast" }
+thiserror = "1.0"

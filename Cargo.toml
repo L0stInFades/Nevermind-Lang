@@ -16,6 +16,7 @@ nevermind-common = { path = "crates/common" }
 nevermind-ast = { path = "crates/ast" }
 nevermind-lexer = { path = "crates/lexer" }
 nevermind-parser = { path = "crates/parser" }
+nevermind-name-resolver = { path = "crates/name-resolver" }
 
 # CLI
 clap = { version = "4.4", features = ["derive"] }
@@ -30,6 +31,7 @@ members = [
     "crates/parser",
     "crates/ast",
     "crates/common",
+    "crates/name-resolver",
 ]
 
 [workspace.dependencies]

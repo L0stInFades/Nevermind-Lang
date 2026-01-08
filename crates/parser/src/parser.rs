@@ -15,6 +15,7 @@ use nevermind_ast::op::{BinaryOp, ComparisonOp, UnaryOp, LogicalOp};
 
 use super::error::{ParseError, ParseResult};
 use super::expr_parser::ExprParser;
+use super::pattern_parser::PatternParser;
 
 /// The Nevermind parser
 pub struct Parser {
@@ -737,27 +738,7 @@ impl Parser {
 
     /// Parse a pattern
     pub fn parse_pattern(&mut self) -> ParseResult<Pattern> {
-        let start = self.peek_span();
-
-        // Check for wildcard
-        if self.match_delimiter(Delimiter::Dollar) {
-            // Note: We'd need a delimiter for wildcard, using '_' as identifier
-        }
-
-        let name = self.consume_identifier("expected pattern")?;
-
-        let pattern = if name == "_" {
-            Pattern::Wildcard {
-                span: self.span_from(start),
-            }
-        } else {
-            Pattern::Variable {
-                name,
-                span: self.span_from(start),
-            }
-        };
-
-        Ok(pattern)
+        PatternParser::new(self).parse_pattern()
     }
 
     /// Parse an expression (delegate to expression parser)
