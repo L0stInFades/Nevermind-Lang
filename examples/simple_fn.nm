@@ -1,0 +1,8 @@
+fn add(a, b)
+  do
+    a + b
+  end
+end
+
+let result = add(5, 3)
+print result

@@ -1,0 +1,6 @@
+fn add(a, b)
+do
+a
+end
+end
+add(1, 2)

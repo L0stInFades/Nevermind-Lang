@@ -1,0 +1,7 @@
+fn add(a)
+do
+a
+end
+end
+let result = add(10)
+print result

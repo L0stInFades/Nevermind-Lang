@@ -1,0 +1,7 @@
+fn max(a, b)
+do
+if a > b then a else b end
+end
+end
+let numbers = [1, 2, 3]
+print numbers

@@ -83,7 +83,10 @@ impl Parser {
                 self.parse_function_statement()?
             }
             TokenType::Keyword(Keyword::If) => {
-                self.parse_if_statement()?
+                // Check if this is an if-expression (then...else...end) or if-statement (do...end)
+                // We peek ahead to see what comes after the condition
+                // For simplicity, we'll try both approaches
+                self.parse_if_or_expr_statement()?
             }
             TokenType::Keyword(Keyword::While) => {
                 self.parse_while_statement()?
@@ -124,6 +127,94 @@ impl Parser {
         };
 
         Ok(stmt)
+    }
+
+    /// Parse an if statement or if expression
+    /// This handles both:
+    /// - if-statement: if cond do ... end else do ... end end
+    /// - if-expression: if cond then expr else expr end
+    pub fn parse_if_or_expr_statement(&mut self) -> ParseResult<Option<Stmt>> {
+        let start = self.peek_span();
+
+        self.consume_keyword(Keyword::If, "expected 'if'")?;
+
+        // Parse the condition
+        let condition = self.parse_expression()?;
+
+        // Check what comes next
+        if self.match_keyword(Keyword::Then) {
+            // This is an if-expression
+            let then_branch = self.parse_expression()?;
+            self.consume_keyword(Keyword::Else, "expected 'else' in if expression")?;
+            let else_branch = self.parse_expression()?;
+            self.consume_keyword(Keyword::End, "expected 'end' to close if expression")?;
+
+            let span = self.span_from(start);
+
+            Ok(Some(Stmt::ExprStmt {
+                id: nevermind_ast::new_node_id(),
+                expr: Expr::If {
+                    id: nevermind_ast::new_node_id(),
+                    condition: Box::new(condition),
+                    then_branch: Box::new(then_branch),
+                    else_branch: Box::new(else_branch),
+                    span: span.clone(),
+                },
+                span,
+            }))
+        } else if self.match_keyword(Keyword::Do) {
+            // This is an if-statement
+            let mut then_branch = Vec::new();
+            while !self.check_keyword(Keyword::End) && !self.is_at_end() {
+                if let Some(stmt) = self.parse_statement()? {
+                    then_branch.push(stmt);
+                }
+            }
+            self.consume_keyword(Keyword::End, "expected 'end' to close then block")?;
+
+            let mut else_branch = None;
+            if self.match_keyword(Keyword::Else) {
+                let mut stmts = Vec::new();
+                if self.match_keyword(Keyword::Do) {
+                    while !self.check_keyword(Keyword::End) && !self.is_at_end() {
+                        if let Some(stmt) = self.parse_statement()? {
+                            stmts.push(stmt);
+                        }
+                    }
+                    self.consume_keyword(Keyword::End, "expected 'end' to close else block")?;
+                    else_branch = Some(stmts);
+                } else if self.check_keyword(Keyword::If) {
+                    // else if
+                    if let Some(stmt) = self.parse_if_or_expr_statement()? {
+                        stmts.push(stmt);
+                    }
+                    else_branch = Some(stmts);
+                } else {
+                    // Single statement else
+                    if let Some(stmt) = self.parse_statement()? {
+                        stmts.push(stmt);
+                    }
+                    else_branch = Some(stmts);
+                }
+            }
+
+            self.consume_keyword(Keyword::End, "expected 'end' to close if statement")?;
+
+            let span = self.span_from(start);
+
+            Ok(Some(Stmt::If {
+                id: nevermind_ast::new_node_id(),
+                condition,
+                then_branch,
+                else_branch,
+                span,
+            }))
+        } else {
+            Err(ParseError::new(
+                "expected 'then' or 'do' after if condition",
+                self.peek_span(),
+            ))
+        }
     }
 
     /// Parse a let/var statement
@@ -179,6 +270,8 @@ impl Parser {
         };
 
         let body = self.parse_expression()?;
+
+        self.consume_keyword(Keyword::End, "expected 'end' to close function declaration")?;
 
         let span = self.span_from(start);
 

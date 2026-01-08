@@ -291,7 +291,7 @@ impl<'a> ExprParser<'a> {
                 // Function call
                 let mut args = Vec::new();
 
-                self.parser.advance();  // consume '('
+                // Note: '(' was already consumed in parse_expression_bp
 
                 while !self.parser.check_delimiter(Delimiter::RParen) && !self.parser.is_at_end() {
                     args.push(self.parse_expression_bp(0)?);
@@ -445,6 +445,8 @@ impl<'a> ExprParser<'a> {
         self.parser.consume_keyword(Keyword::Else, "expected 'else' in if expression")?;
 
         let else_branch = self.parse_expression_bp(0)?;
+
+        self.parser.consume_keyword(Keyword::End, "expected 'end' to close if expression")?;
 
         Ok(Expr::If {
             id: nevermind_ast::new_node_id(),
