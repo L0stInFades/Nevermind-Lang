@@ -1,0 +1,9 @@
+fn loop_test()
+do
+while true
+do
+print "looping"
+end
+end
+end
+end

@@ -1,0 +1,25 @@
+fn test_return()
+do
+return 42
+end
+end
+
+fn test_break()
+do
+while true
+do
+break
+end
+end
+end
+end
+
+fn test_continue()
+do
+while true
+do
+continue
+end
+end
+end
+end

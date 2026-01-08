@@ -414,6 +414,8 @@ impl Parser {
             });
         }
 
+        self.consume_keyword(Keyword::End, "expected 'end' to close while statement")?;
+
         let span = self.span_from(start);
 
         Ok(Some(Stmt::While {
@@ -451,6 +453,8 @@ impl Parser {
                 span: self.previous_span(),
             });
         }
+
+        self.consume_keyword(Keyword::End, "expected 'end' to close for statement")?;
 
         let span = self.span_from(start);
 
