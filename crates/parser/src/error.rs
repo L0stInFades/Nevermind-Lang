@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use nevermind_common::{Error, ErrorKind, Result, Span};
+use nevermind_common::{Error, Span};
 
 /// A parse error
 #[derive(Error, Debug)]
@@ -34,8 +34,6 @@ impl std::fmt::Display for ParseError {
         write!(f, "{}: {}", self.span, self.message)
     }
 }
-
-impl std::error::Error for ParseError {}
 
 /// A result type for parsing
 pub type ParseResult<T> = std::result::Result<T, ParseError>;

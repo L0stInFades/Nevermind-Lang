@@ -8,7 +8,8 @@ use nevermind_common::Span;
 use nevermind_lexer::{Lexer, Token, TokenType};
 use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 
-use nevermind_ast::{Expr, Stmt, Pattern, TypeAnnotation, Parameter, MatchArm};
+use nevermind_ast::{Expr, Stmt, Pattern, TypeAnnotation, Parameter};
+use nevermind_ast::stmt::MatchArm;
 use nevermind_ast::types::{Type, PrimitiveType};
 use nevermind_ast::op::{BinaryOp, ComparisonOp, UnaryOp, LogicalOp};
 
@@ -21,10 +22,10 @@ pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
 
     /// Current token
-    current: Option<Token>,
+    pub current: Option<Token>,
 
     /// Previous token
-    previous: Option<Token>,
+    pub previous: Option<Token>,
 }
 
 impl Parser {
@@ -384,7 +385,7 @@ impl Parser {
             let pattern = self.parse_pattern()?;
 
             let guard = if self.match_delimiter(Delimiter::Colon) {
-                Some(Box::new(self.parse_expression()?))
+                Some(self.parse_expression()?)
             } else {
                 None
             };
@@ -799,7 +800,7 @@ impl Parser {
 
     /// Create a span from start to current position
     pub fn span_from(&self, start: Span) -> Span {
-        Span::new(start.start.clone(), self.peek_span())
+        Span::new(start.start.clone(), self.peek_span().end)
     }
 }
 

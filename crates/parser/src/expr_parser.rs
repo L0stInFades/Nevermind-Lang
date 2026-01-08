@@ -49,7 +49,7 @@ impl<'a> ExprParser<'a> {
 
             self.parser.advance();
 
-            lhs = self.parse_infix(lhs, op_token, right_bp, start)?;
+            lhs = self.parse_infix(lhs, op_token, right_bp, start.clone())?;
         }
 
         Ok(lhs)
@@ -140,7 +140,7 @@ impl<'a> ExprParser<'a> {
                     id: nevermind_ast::new_node_id(),
                     op,
                     expr: Box::new(expr),
-                    span: Span::new(start, self.parser.previous_span()),
+                    span: self.parser.span_from(start),
                 }
             }
 
@@ -206,7 +206,7 @@ impl<'a> ExprParser<'a> {
                             left: Box::new(lhs),
                             op: bin_op,
                             right: Box::new(rhs),
-                            span: Span::new(start, self.parser.previous_span()),
+                            span: self.parser.span_from(start),
                         }
                     }
 
@@ -228,7 +228,7 @@ impl<'a> ExprParser<'a> {
                             left: Box::new(lhs),
                             op: cmp_op,
                             right: Box::new(rhs),
-                            span: Span::new(start, self.parser.previous_span()),
+                            span: self.parser.span_from(start),
                         }
                     }
 
@@ -245,13 +245,13 @@ impl<'a> ExprParser<'a> {
                             left: Box::new(lhs),
                             op: log_op,
                             right: Box::new(rhs),
-                            span: Span::new(start, self.parser.previous_span()),
+                            span: self.parser.span_from(start),
                         }
                     }
 
                     Operator::Pipe => {
                         // Pipeline operator
-                        self.parser.consume_delimiter(Operator::Pipe, "expected '|' after first expression")?;
+                        self.parser.consume_operator(Operator::Pipe, "expected '|' after first expression")?;
 
                         let mut stages = vec![lhs];
                         stages.push(self.parse_expression_bp(right_bp)?);
@@ -263,7 +263,7 @@ impl<'a> ExprParser<'a> {
                         Expr::Pipeline {
                             id: nevermind_ast::new_node_id(),
                             stages,
-                            span: Span::new(start, self.parser.previous_span()),
+                            span: self.parser.span_from(start),
                         }
                     }
 
@@ -274,7 +274,7 @@ impl<'a> ExprParser<'a> {
                         Expr::Variable {
                             id: nevermind_ast::new_node_id(),
                             name: field,
-                            span: Span::new(start, self.parser.previous_span()),
+                            span: self.parser.span_from(start),
                         }  // TODO: Implement proper member access
                     }
 
@@ -307,7 +307,7 @@ impl<'a> ExprParser<'a> {
                     id: nevermind_ast::new_node_id(),
                     callee: Box::new(lhs),
                     args,
-                    span: Span::new(start, self.parser.previous_span()),
+                    span: self.parser.span_from(start),
                 }
             }
 
@@ -320,7 +320,7 @@ impl<'a> ExprParser<'a> {
                 Expr::Variable {
                     id: nevermind_ast::new_node_id(),
                     name: format!("{:?}[{:?}]", lhs, index),
-                    span: Span::new(start, self.parser.previous_span()),
+                    span: self.parser.span_from(start),
                 }  // TODO: Implement proper indexing
             }
 
@@ -354,7 +354,7 @@ impl<'a> ExprParser<'a> {
         Ok(Expr::List {
             id: nevermind_ast::new_node_id(),
             elements,
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
@@ -381,7 +381,7 @@ impl<'a> ExprParser<'a> {
         Ok(Expr::Map {
             id: nevermind_ast::new_node_id(),
             entries,
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
@@ -392,7 +392,7 @@ impl<'a> ExprParser<'a> {
         // Parse parameters
         let mut params = Vec::new();
 
-        while !self.parser.check_delimiter(Operator::Pipe) && !self.parser.is_at_end() {
+        while !self.parser.check_operator(Operator::BitOr) && !self.parser.is_at_end() {
             let name = self.parser.consume_identifier("expected parameter name")?;
 
             let type_annotation = if self.parser.match_delimiter(Delimiter::Colon) {
@@ -413,10 +413,10 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Operator::Pipe, "expected '|' to end lambda parameters")?;
+        self.parser.consume_operator(Operator::BitOr, "expected '|' to end lambda parameters")?;
 
         // Parse body (expression or block)
-        let body = if self.parser.check_delimiter(Operator::Pipe) {
+        let body = if self.parser.check_operator(Operator::BitOr) {
             // Block body
             self.parse_block()?
         } else {
@@ -428,7 +428,7 @@ impl<'a> ExprParser<'a> {
             id: nevermind_ast::new_node_id(),
             params,
             body: Box::new(body),
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
@@ -451,7 +451,7 @@ impl<'a> ExprParser<'a> {
             condition: Box::new(condition),
             then_branch: Box::new(then_branch),
             else_branch: Box::new(else_branch),
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
@@ -472,7 +472,7 @@ impl<'a> ExprParser<'a> {
         Ok(Expr::Block {
             id: nevermind_ast::new_node_id(),
             statements,
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
@@ -499,10 +499,10 @@ impl<'a> ExprParser<'a> {
 
             let body = self.parse_expression_bp(0)?;
 
-            arms.push(super::MatchArm {
+            arms.push(MatchArm {
                 pattern,
                 guard,
-                body,
+                body: Box::new(body),
             });
 
             self.parser.match_delimiter(Delimiter::Comma);
@@ -514,7 +514,7 @@ impl<'a> ExprParser<'a> {
             id: nevermind_ast::new_node_id(),
             scrutinee: Box::new(scrutinee),
             arms,
-            span: Span::new(start, self.parser.previous_span()),
+            span: self.parser.span_from(start),
         })
     }
 
