@@ -64,7 +64,7 @@ impl Parser {
     }
 
     /// Parse a statement
-    fn parse_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_statement(&mut self) -> ParseResult<Option<Stmt>> {
         // Skip empty lines (semicolon tokens from indentation)
         while self.match_delimiter(Delimiter::Semicolon) {
             continue;
@@ -126,7 +126,7 @@ impl Parser {
     }
 
     /// Parse a let/var statement
-    fn parse_let_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_let_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         let is_mutable = if self.match_keyword(Keyword::Var) {
@@ -149,7 +149,7 @@ impl Parser {
 
         let value = self.parse_expression()?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Let {
             id: nevermind_ast::new_node_id(),
@@ -162,7 +162,7 @@ impl Parser {
     }
 
     /// Parse a function declaration
-    fn parse_function_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_function_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Fn, "expected 'fn'")?;
@@ -179,7 +179,7 @@ impl Parser {
 
         let body = self.parse_expression()?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Function {
             id: nevermind_ast::new_node_id(),
@@ -192,7 +192,7 @@ impl Parser {
     }
 
     /// Parse function parameters
-    fn parse_parameters(&mut self) -> ParseResult<Vec<Parameter>> {
+    pub fn parse_parameters(&mut self) -> ParseResult<Vec<Parameter>> {
         self.consume_delimiter(Delimiter::LParen, "expected '(' before parameters")?;
 
         let mut params = Vec::new();
@@ -232,7 +232,7 @@ impl Parser {
     }
 
     /// Parse an if statement
-    fn parse_if_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_if_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::If, "expected 'if'")?;
@@ -285,7 +285,7 @@ impl Parser {
             }
         }
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::If {
             id: nevermind_ast::new_node_id(),
@@ -297,7 +297,7 @@ impl Parser {
     }
 
     /// Parse a while loop
-    fn parse_while_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_while_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::While, "expected 'while'")?;
@@ -320,7 +320,7 @@ impl Parser {
             });
         }
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::While {
             id: nevermind_ast::new_node_id(),
@@ -331,7 +331,7 @@ impl Parser {
     }
 
     /// Parse a for loop
-    fn parse_for_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_for_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::For, "expected 'for'")?;
@@ -358,7 +358,7 @@ impl Parser {
             });
         }
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::For {
             id: nevermind_ast::new_node_id(),
@@ -370,7 +370,7 @@ impl Parser {
     }
 
     /// Parse a match statement
-    fn parse_match_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_match_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Match, "expected 'match'")?;
@@ -404,7 +404,7 @@ impl Parser {
 
         self.consume_delimiter(Delimiter::RBrace, "expected '}' to end match expression")?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Match {
             id: nevermind_ast::new_node_id(),
@@ -415,7 +415,7 @@ impl Parser {
     }
 
     /// Parse a return statement
-    fn parse_return_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_return_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Return, "expected 'return'")?;
@@ -429,7 +429,7 @@ impl Parser {
             None
         };
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Return {
             id: nevermind_ast::new_node_id(),
@@ -439,12 +439,12 @@ impl Parser {
     }
 
     /// Parse a break statement
-    fn parse_break_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_break_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Break, "expected 'break'")?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Break {
             id: nevermind_ast::new_node_id(),
@@ -453,12 +453,12 @@ impl Parser {
     }
 
     /// Parse a continue statement
-    fn parse_continue_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_continue_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Continue, "expected 'continue'")?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Continue {
             id: nevermind_ast::new_node_id(),
@@ -467,7 +467,7 @@ impl Parser {
     }
 
     /// Parse a type alias statement
-    fn parse_type_alias_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_type_alias_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         self.consume_keyword(Keyword::Type, "expected 'type'")?;
@@ -492,7 +492,7 @@ impl Parser {
 
         let definition = self.parse_type_annotation()?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::TypeAlias {
             id: nevermind_ast::new_node_id(),
@@ -504,7 +504,7 @@ impl Parser {
     }
 
     /// Parse an import statement
-    fn parse_import_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_import_statement(&mut self) -> ParseResult<Option<Stmt>> {
         let start = self.peek_span();
 
         let (module, symbols) = if self.match_keyword(Keyword::From) {
@@ -527,7 +527,7 @@ impl Parser {
             (self.consume_string_literal("expected module name")?, None)
         };
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Import {
             id: nevermind_ast::new_node_id(),
@@ -538,7 +538,7 @@ impl Parser {
     }
 
     /// Parse a class statement
-    fn parse_class_statement(&mut self) -> ParseResult<Option<Stmt>> {
+    pub fn parse_class_statement(&mut self) -> ParseResult<Option<Stmt>> {
         // TODO: Implement full class parsing
         let start = self.peek_span();
 
@@ -558,7 +558,7 @@ impl Parser {
 
         self.consume_delimiter(Delimiter::RBrace, "expected '}' to end class body")?;
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(Some(Stmt::Class {
             id: nevermind_ast::new_node_id(),
@@ -570,7 +570,7 @@ impl Parser {
     }
 
     /// Parse a type annotation
-    fn parse_type_annotation(&mut self) -> ParseResult<TypeAnnotation> {
+    pub fn parse_type_annotation(&mut self) -> ParseResult<TypeAnnotation> {
         let start = self.peek_span();
 
         // Simple identifier type
@@ -628,7 +628,7 @@ impl Parser {
             _ => Type::Identifier(name),
         };
 
-        let span = Span::new(start, self.previous_span());
+        let span = self.span_from(start);
 
         Ok(TypeAnnotation {
             id: nevermind_ast::new_node_id(),
@@ -638,7 +638,7 @@ impl Parser {
     }
 
     /// Parse a pattern
-    fn parse_pattern(&mut self) -> ParseResult<Pattern> {
+    pub fn parse_pattern(&mut self) -> ParseResult<Pattern> {
         let start = self.peek_span();
 
         // Check for wildcard
@@ -650,12 +650,12 @@ impl Parser {
 
         let pattern = if name == "_" {
             Pattern::Wildcard {
-                span: Span::new(start, self.previous_span()),
+                span: self.span_from(start),
             }
         } else {
             Pattern::Variable {
                 name,
-                span: Span::new(start, self.previous_span()),
+                span: self.span_from(start),
             }
         };
 
@@ -663,45 +663,45 @@ impl Parser {
     }
 
     /// Parse an expression (delegate to expression parser)
-    fn parse_expression(&mut self) -> ParseResult<Expr> {
+    pub fn parse_expression(&mut self) -> ParseResult<Expr> {
         ExprParser::new(self).parse_expression_bp(0)
     }
 
     // === Helper methods ===
 
     /// Check if we're at the end of input
-    fn is_at_end(&self) -> bool {
+    pub fn is_at_end(&self) -> bool {
         self.current.as_ref().map_or(true, |t| t.is_eof())
     }
 
     /// Get the current token type
-    fn peek_token_type(&self) -> TokenType {
+    pub fn peek_token_type(&self) -> TokenType {
         self.current.as_ref()
             .map(|t| t.kind.clone())
             .unwrap_or(TokenType::EOF)
     }
 
     /// Get the span of the current token
-    fn peek_span(&self) -> Span {
+    pub fn peek_span(&self) -> Span {
         self.current.as_ref()
             .map(|t| t.span.clone())
             .unwrap_or_else(|| Span::dummy())
     }
 
     /// Get the span of the previous token
-    fn previous_span(&self) -> Span {
+    pub fn previous_span(&self) -> Span {
         self.previous.as_ref()
             .map(|t| t.span.clone())
             .unwrap_or_else(|| Span::dummy())
     }
 
     /// Check if current token is a keyword
-    fn check_keyword(&self, keyword: Keyword) -> bool {
+    pub fn check_keyword(&self, keyword: Keyword) -> bool {
         matches!(self.peek_token_type(), TokenType::Keyword(kw) if kw == keyword)
     }
 
     /// Match and consume a keyword
-    fn match_keyword(&mut self, keyword: Keyword) -> bool {
+    pub fn match_keyword(&mut self, keyword: Keyword) -> bool {
         if self.check_keyword(keyword) {
             self.advance();
             true
@@ -711,7 +711,7 @@ impl Parser {
     }
 
     /// Consume a keyword or error
-    fn consume_keyword(&mut self, keyword: Keyword, message: &str) -> ParseResult<()> {
+    pub fn consume_keyword(&mut self, keyword: Keyword, message: &str) -> ParseResult<()> {
         if self.check_keyword(keyword) {
             self.advance();
             Ok(())
@@ -721,12 +721,12 @@ impl Parser {
     }
 
     /// Check if current token is a delimiter
-    fn check_delimiter(&self, delimiter: Delimiter) -> bool {
+    pub fn check_delimiter(&self, delimiter: Delimiter) -> bool {
         matches!(self.peek_token_type(), TokenType::Delimiter(del) if del == delimiter)
     }
 
     /// Match and consume a delimiter
-    fn match_delimiter(&mut self, delimiter: Delimiter) -> bool {
+    pub fn match_delimiter(&mut self, delimiter: Delimiter) -> bool {
         if self.check_delimiter(delimiter) {
             self.advance();
             true
@@ -736,7 +736,7 @@ impl Parser {
     }
 
     /// Consume a delimiter or error
-    fn consume_delimiter(&mut self, delimiter: Delimiter, message: &str) -> ParseResult<()> {
+    pub fn consume_delimiter(&mut self, delimiter: Delimiter, message: &str) -> ParseResult<()> {
         if self.check_delimiter(delimiter) {
             self.advance();
             Ok(())
@@ -746,12 +746,12 @@ impl Parser {
     }
 
     /// Check if current token is an operator
-    fn check_operator(&self, operator: Operator) -> bool {
+    pub fn check_operator(&self, operator: Operator) -> bool {
         matches!(self.peek_token_type(), TokenType::Operator(op) if op == operator)
     }
 
     /// Match and consume an operator
-    fn match_operator(&mut self, operator: Operator) -> bool {
+    pub fn match_operator(&mut self, operator: Operator) -> bool {
         if self.check_operator(operator) {
             self.advance();
             true
@@ -761,7 +761,7 @@ impl Parser {
     }
 
     /// Consume an operator or error
-    fn consume_operator(&mut self, operator: Operator, message: &str) -> ParseResult<()> {
+    pub fn consume_operator(&mut self, operator: Operator, message: &str) -> ParseResult<()> {
         if self.check_operator(operator) {
             self.advance();
             Ok(())
@@ -771,7 +771,7 @@ impl Parser {
     }
 
     /// Consume an identifier or error
-    fn consume_identifier(&mut self, message: &str) -> ParseResult<String> {
+    pub fn consume_identifier(&mut self, message: &str) -> ParseResult<String> {
         if matches!(self.peek_token_type(), TokenType::Identifier) {
             let token = self.advance().unwrap();
             Ok(token.text)
@@ -781,7 +781,7 @@ impl Parser {
     }
 
     /// Consume a string literal or error
-    fn consume_string_literal(&mut self, message: &str) -> ParseResult<String> {
+    pub fn consume_string_literal(&mut self, message: &str) -> ParseResult<String> {
         if matches!(self.peek_token_type(), TokenType::Literal(LiteralType::String)) {
             let token = self.advance().unwrap();
             Ok(token.text)
@@ -791,10 +791,15 @@ impl Parser {
     }
 
     /// Advance to the next token
-    fn advance(&mut self) -> Option<Token> {
+    pub fn advance(&mut self) -> Option<Token> {
         self.previous = self.current.take();
         self.current = self.tokens.next();
         self.previous.clone()
+    }
+
+    /// Create a span from start to current position
+    pub fn span_from(&self, start: Span) -> Span {
+        Span::new(start.start.clone(), self.peek_span())
     }
 }
 

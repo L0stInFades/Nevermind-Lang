@@ -5,8 +5,8 @@ use nevermind_common::Span;
 use nevermind_lexer::{Token, TokenType};
 use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 
-use nevermind_ast::{Expr, Stmt, Parameter};
-use nevermind_ast::expr::Literal;
+use nevermind_ast::{Expr, Stmt, Parameter, MatchArm, TypeAnnotation, Literal};
+use nevermind_ast::op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp};
 
 use super::error::{ParseError, ParseResult};
 use super::Parser;
@@ -144,7 +144,7 @@ impl<'a> ExprParser<'a> {
                 }
             }
 
-            TokenType::Delimiter(Delimiter::Pipe) => {
+            TokenType::Operator(Operator::Pipe) => {
                 // Lambda expression: |param1, param2| -> expr
                 self.parser.advance();
                 self.parse_lambda()?
@@ -251,7 +251,7 @@ impl<'a> ExprParser<'a> {
 
                     Operator::Pipe => {
                         // Pipeline operator
-                        self.parser.consume_delimiter(Delimiter::Pipe, "expected '|' after first expression")?;
+                        self.parser.consume_delimiter(Operator::Pipe, "expected '|' after first expression")?;
 
                         let mut stages = vec![lhs];
                         stages.push(self.parse_expression_bp(right_bp)?);
@@ -392,7 +392,7 @@ impl<'a> ExprParser<'a> {
         // Parse parameters
         let mut params = Vec::new();
 
-        while !self.parser.check_delimiter(Delimiter::Pipe) && !self.parser.is_at_end() {
+        while !self.parser.check_delimiter(Operator::Pipe) && !self.parser.is_at_end() {
             let name = self.parser.consume_identifier("expected parameter name")?;
 
             let type_annotation = if self.parser.match_delimiter(Delimiter::Colon) {
@@ -413,10 +413,10 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::Pipe, "expected '|' to end lambda parameters")?;
+        self.parser.consume_delimiter(Operator::Pipe, "expected '|' to end lambda parameters")?;
 
         // Parse body (expression or block)
-        let body = if self.parser.check_delimiter(Delimiter::Pipe) {
+        let body = if self.parser.check_delimiter(Operator::Pipe) {
             // Block body
             self.parse_block()?
         } else {

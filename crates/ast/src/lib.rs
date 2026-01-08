@@ -6,11 +6,11 @@ pub mod pattern;
 pub mod types;
 pub mod op;
 
-pub use expr::Expr;
+pub use expr::{Expr, Parameter, MatchArm, Literal};
 pub use stmt::Stmt;
 pub use pattern::Pattern;
 pub use types::{Type, TypeAnnotation};
-pub use op::{BinaryOp, UnaryOp, LogicalOp};
+pub use op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp};
 
 use nevermind_common::Span;
 

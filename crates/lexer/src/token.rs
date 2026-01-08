@@ -116,6 +116,10 @@ pub enum Keyword {
     Fn,
     Return,
 
+    // Control flow (loop)
+    Break,
+    Continue,
+
     // Types
     Type,
 
@@ -178,6 +182,8 @@ impl Keyword {
             "in" => Some(Keyword::In),
             "fn" => Some(Keyword::Fn),
             "return" => Some(Keyword::Return),
+            "break" => Some(Keyword::Break),
+            "continue" => Some(Keyword::Continue),
             "type" => Some(Keyword::Type),
             "try" => Some(Keyword::Try),
             "catch" => Some(Keyword::Catch),
