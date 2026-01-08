@@ -10,6 +10,20 @@ readme = "README.md"
 keywords = ["programming-language", "compiler", "python-interop"]
 categories = ["compilers"]
 
+[dependencies]
+# Local crates
+nevermind-common = { path = "crates/common" }
+nevermind-ast = { path = "crates/ast" }
+nevermind-lexer = { path = "crates/lexer" }
+nevermind-parser = { path = "crates/parser" }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
 [workspace]
 members = [
     "crates/lexer",

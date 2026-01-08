@@ -1,12 +1,11 @@
 //! Token definitions for the Nevermind lexer
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use nevermind_common::Span;
 
 /// A token produced by the lexer
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     /// The type of this token
     pub kind: TokenType,
@@ -71,7 +70,7 @@ impl fmt::Display for Token {
 }
 
 /// The type of a token
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, )]
 pub enum TokenType {
     /// Keywords
     Keyword(Keyword),
@@ -93,7 +92,7 @@ pub enum TokenType {
 }
 
 /// Keywords in Nevermind
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
 pub enum Keyword {
     // Variable declarations
     Let,
@@ -208,7 +207,7 @@ impl Keyword {
 }
 
 /// Literal types
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, )]
 pub enum LiteralType {
     Integer,
     Float,
@@ -217,7 +216,7 @@ pub enum LiteralType {
 }
 
 /// Operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
 pub enum Operator {
     // Arithmetic
     Add,        // +
@@ -333,7 +332,7 @@ impl Operator {
 }
 
 /// Delimiters
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
 pub enum Delimiter {
     LParen,     // (
     RParen,     // )

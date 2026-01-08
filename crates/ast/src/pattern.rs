@@ -1,11 +1,10 @@
 //! Pattern matching patterns
 
-use serde::{Deserialize, Serialize};
 use crate::expr::Literal;
 use nevermind_common::Span;
 
 /// A pattern in a match expression or function parameter
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Pattern {
     /// Wildcard pattern (matches anything, _)
     Wildcard {
@@ -65,7 +64,7 @@ pub enum Pattern {
 }
 
 /// A field in a struct pattern
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StructPatternField {
     pub name: String,
     pub pattern: Pattern,

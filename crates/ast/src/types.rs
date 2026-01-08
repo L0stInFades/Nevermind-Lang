@@ -1,13 +1,12 @@
 //! Type definitions
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::NodeId;
 use nevermind_common::Span;
 
 /// A type annotation
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeAnnotation {
     pub id: NodeId,
     pub span: Span,
@@ -25,7 +24,7 @@ impl TypeAnnotation {
 }
 
 /// Types in Nevermind
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
     /// Primitive types
     Primitive(PrimitiveType),
@@ -77,7 +76,7 @@ pub enum Type {
 }
 
 /// Primitive types
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
     /// Signed integer
     Int,

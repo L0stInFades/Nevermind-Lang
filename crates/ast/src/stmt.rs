@@ -1,13 +1,11 @@
 //! Statement nodes
 
-use serde::{Deserialize, Serialize};
-
 use crate::{NodeId, Pattern, TypeAnnotation};
 use crate::expr::{Expr, Parameter, Literal};
 use nevermind_common::Span;
 
 /// A statement
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     /// Variable declaration (let or var)
     Let {
@@ -117,7 +115,7 @@ pub enum Stmt {
 }
 
 /// A match arm (used in both match expressions and statements)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pattern: Pattern,
     pub guard: Option<Expr>,
@@ -125,7 +123,7 @@ pub struct MatchArm {
 }
 
 /// A class member
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum ClassMember {
     Field {
         name: String,

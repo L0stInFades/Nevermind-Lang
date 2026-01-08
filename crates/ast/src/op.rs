@@ -1,9 +1,7 @@
 //! Operators in Nevermind
 
-use serde::{Deserialize, Serialize};
-
 /// Binary arithmetic operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinaryOp {
     /// Addition (+)
     Add,
@@ -61,7 +59,7 @@ impl BinaryOp {
 }
 
 /// Binary comparison operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComparisonOp {
     /// Equal (==)
     Eq,
@@ -97,7 +95,7 @@ impl ComparisonOp {
 }
 
 /// Unary operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnaryOp {
     /// Logical negation (!)
     Not,
@@ -134,7 +132,7 @@ impl UnaryOp {
 }
 
 /// Logical operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogicalOp {
     /// Logical and (and)
     And,

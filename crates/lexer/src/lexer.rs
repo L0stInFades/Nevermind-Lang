@@ -237,7 +237,7 @@ impl<'a> Lexer<'a> {
 
         // Fractional part
         if self.peek() == Some('.') {
-            if let Some(&c) = self.peek2() {
+            if let Some(c) = self.peek2() {
                 if c.is_ascii_digit() {
                     is_float = true;
                     text.push(self.advance().unwrap());  // consume '.'
@@ -345,7 +345,7 @@ impl<'a> Lexer<'a> {
             self.advance().ok_or_else(|| {
                 Error::lexical(
                     "unterminated character literal",
-                    Span::new(start, self.location.clone()),
+                    Span::new(start.clone(), self.location.clone()),
                 )
             })?
         };
@@ -359,7 +359,7 @@ impl<'a> Lexer<'a> {
 
         self.advance();  // consume closing '\''
 
-        let span = Span::new(start, self.location.clone());
+        let span = Span::new(start.clone(), self.location.clone());
 
         Ok(Token::new(
             TokenType::Literal(LiteralType::Char),
@@ -637,12 +637,12 @@ impl<'a> Lexer<'a> {
     }
 
     /// Peek at the next character
-    fn peek(&self) -> Option<char> {
+    fn peek(&mut self) -> Option<char> {
         self.chars.peek().copied()
     }
 
     /// Peek at the second next character
-    fn peek2(&self) -> Option<char> {
+    fn peek2(&mut self) -> Option<char> {
         let mut iter = self.chars.clone();
         iter.next();
         iter.next()

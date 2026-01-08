@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git init:*)",
       "Bash(cargo check:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(wc:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo build:*)"
     ]
   }
 }

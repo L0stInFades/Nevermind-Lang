@@ -1,7 +1,6 @@
 //! Error types for Nevermind
 
 use std::fmt;
-use std::path::PathBuf;
 
 use thiserror::Error;
 
@@ -185,12 +184,6 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: error: {}", self.span, self.message)
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.related.first()?.as_ref().into()
     }
 }
 

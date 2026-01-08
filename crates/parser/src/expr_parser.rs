@@ -62,21 +62,22 @@ impl<'a> ExprParser<'a> {
         let expr = match self.parser.peek_token_type() {
             TokenType::Literal(lit_type) => {
                 let token = self.parser.advance().unwrap();
+                let span = token.span.clone();
                 let literal = match lit_type {
                     LiteralType::Integer => {
                         let value = token.text.parse::<i64>().unwrap_or(0);
-                        Literal::Integer(value)
+                        Literal::Integer(value, span)
                     }
                     LiteralType::Float => {
                         let value = token.text.parse::<f64>().unwrap_or(0.0);
-                        Literal::Float(value)
+                        Literal::Float(value, span)
                     }
                     LiteralType::String => {
-                        Literal::String(token.text)
+                        Literal::String(token.text, span)
                     }
                     LiteralType::Char => {
                         let c = token.text.chars().next().unwrap_or('\0');
-                        Literal::Char(c)
+                        Literal::Char(c, span)
                     }
                 };
 
@@ -93,18 +94,18 @@ impl<'a> ExprParser<'a> {
             }
 
             TokenType::Keyword(Keyword::True) => {
-                self.parser.advance();
-                Expr::Literal(Literal::Boolean(true))
+                let token = self.parser.advance().unwrap();
+                Expr::Literal(Literal::Boolean(true, token.span))
             }
 
             TokenType::Keyword(Keyword::False) => {
-                self.parser.advance();
-                Expr::Literal(Literal::Boolean(false))
+                let token = self.parser.advance().unwrap();
+                Expr::Literal(Literal::Boolean(false, token.span))
             }
 
             TokenType::Keyword(Keyword::Null) => {
-                self.parser.advance();
-                Expr::Literal(Literal::Null)
+                let token = self.parser.advance().unwrap();
+                Expr::Literal(Literal::Null(token.span))
             }
 
             TokenType::Delimiter(Delimiter::LParen) => {

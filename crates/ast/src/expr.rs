@@ -1,6 +1,5 @@
 //! Expression nodes
 
-use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::{NodeId, op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp}};
@@ -8,7 +7,7 @@ use crate::{Pattern, TypeAnnotation};
 use nevermind_common::Span;
 
 /// An expression
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     /// Literal value
     Literal(Literal),
@@ -118,7 +117,7 @@ pub enum Expr {
 }
 
 /// A function parameter
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Parameter {
     pub id: NodeId,
     pub name: String,
@@ -127,7 +126,7 @@ pub struct Parameter {
 }
 
 /// A match arm
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pattern: Pattern,
     pub guard: Option<Box<Expr>>,
@@ -138,7 +137,7 @@ impl Expr {
     /// Get the span of this expression
     pub fn span(&self) -> &Span {
         match self {
-            Expr::Literal(lit) => &lit.span,
+            Expr::Literal(lit) => lit.span(),
             Expr::Variable { span, .. } => span,
             Expr::Binary { span, .. } => span,
             Expr::Comparison { span, .. } => span,
@@ -157,42 +156,49 @@ impl Expr {
 }
 
 /// Literal values
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     /// Integer literal
-    Integer(i64),
+    Integer(i64, Span),
 
     /// Floating-point literal
-    Float(f64),
+    Float(f64, Span),
 
     /// String literal
-    String(String),
+    String(String, Span),
 
     /// Character literal
-    Char(char),
+    Char(char, Span),
 
     /// Boolean literal
-    Boolean(bool),
+    Boolean(bool, Span),
 
     /// Null literal
-    Null,
+    Null(Span),
 }
 
 impl Literal {
     /// Get the span of this literal
-    pub fn span(&self) -> Span {
-        Span::dummy()
+    pub fn span(&self) -> &Span {
+        match self {
+            Literal::Integer(_, span) => span,
+            Literal::Float(_, span) => span,
+            Literal::String(_, span) => span,
+            Literal::Char(_, span) => span,
+            Literal::Boolean(_, span) => span,
+            Literal::Null(span) => span,
+        }
     }
 
     /// Get the type of this literal
     pub fn type_name(&self) -> &'static str {
         match self {
-            Literal::Integer(_) => "Int",
-            Literal::Float(_) => "Float",
-            Literal::String(_) => "String",
-            Literal::Char(_) => "Char",
-            Literal::Boolean(_) => "Bool",
-            Literal::Null => "Null",
+            Literal::Integer(_, _) => "Int",
+            Literal::Float(_, _) => "Float",
+            Literal::String(_, _) => "String",
+            Literal::Char(_, _) => "Char",
+            Literal::Boolean(_, _) => "Bool",
+            Literal::Null(_) => "Null",
         }
     }
 }
@@ -254,12 +260,12 @@ impl fmt::Display for Expr {
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Literal::Integer(n) => write!(f, "{}", n),
-            Literal::Float(n) => write!(f, "{}", n),
-            Literal::String(s) => write!(f, "\"{}\"", s),
-            Literal::Char(c) => write!(f, "'{}'", c),
-            Literal::Boolean(b) => write!(f, "{}", b),
-            Literal::Null => write!(f, "null"),
+            Literal::Integer(n, _) => write!(f, "{}", n),
+            Literal::Float(n, _) => write!(f, "{}", n),
+            Literal::String(s, _) => write!(f, "\"{}\"", s),
+            Literal::Char(c, _) => write!(f, "'{}'", c),
+            Literal::Boolean(b, _) => write!(f, "{}", b),
+            Literal::Null(_) => write!(f, "null"),
         }
     }
 }
