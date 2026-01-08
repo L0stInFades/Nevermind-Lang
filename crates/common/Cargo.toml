@@ -1,0 +1,9 @@
+[package]
+name = "nevermind-common"
+version = "0.1.0"
+edition = "2021"
+description = "Common types and utilities for Nevermind"
+
+[dependencies]
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }

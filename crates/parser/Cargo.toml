@@ -1,0 +1,11 @@
+[package]
+name = "nevermind-parser"
+version = "0.1.0"
+edition = "2021"
+description = "Parser for Nevermind"
+
+[dependencies]
+nevermind-common = { path = "../common" }
+nevermind-ast = { path = "../ast" }
+nevermind-lexer = { path = "../lexer" }
+thiserror = "1.0"

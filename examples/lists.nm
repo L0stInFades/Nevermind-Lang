@@ -1,0 +1,38 @@
+# Lists and Higher-Order Functions
+
+fn sum(numbers: List[Int]) -> Int
+  do
+    numbers.fold(0, |acc, n| acc + n)
+  end
+end
+
+fn double(numbers: List[Int]) -> List[Int]
+  do
+    numbers.map |n| n * 2 |
+  end
+end
+
+fn filter_even(numbers: List[Int]) -> List[Int]
+  do
+    numbers.filter |n| n % 2 == 0 |
+  end
+end
+
+fn main()
+  do
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    print "Original: {numbers}"
+    print "Sum: {sum(numbers)}"
+    print "Doubled: {double(numbers)}"
+    print "Even numbers: {filter_even(numbers)}"
+
+    # Pipeline operator
+    let result = numbers
+      |> filter |n| n > 5 |
+      |> map |n| n * 2 |
+      |> sum
+
+    print "Pipeline result: {result}"
+  end
+end

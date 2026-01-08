@@ -1,0 +1,35 @@
+# Functions and Control Flow
+
+fn add(a: Int, b: Int) -> Int
+  do
+    a + b
+  end
+end
+
+fn factorial(n: Int) -> Int
+  do
+    if n <= 1
+      1
+    else
+      n * factorial(n - 1)
+    end
+  end
+end
+
+fn fibonacci(n: Int) -> Int
+  do
+    if n <= 1
+      n
+    else
+      fibonacci(n - 1) + fibonacci(n - 2)
+    end
+  end
+end
+
+fn main()
+  do
+    print "5 + 3 = {add(5, 3)}"
+    print "5! = {factorial(5)}"
+    print "fib(10) = {fibonacci(10)}"
+  end
+end

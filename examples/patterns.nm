@@ -1,0 +1,32 @@
+# Pattern Matching
+
+fn describe_option(value: Option[Int]) -> String
+  do
+    match value
+      Some(n) => "Got number: {n}"
+      None => "Got nothing"
+    end
+  end
+end
+
+fn classify_number(n: Int) -> String
+  do
+    match n
+      0 => "Zero"
+      1 => "One"
+      2 => "Two"
+      _ => "Many"
+    end
+  end
+end
+
+fn main()
+  do
+    print classify_number(0)
+    print classify_number(1)
+    print classify_number(42)
+
+    print describe_option(Some(42))
+    print describe_option(None)
+  end
+end

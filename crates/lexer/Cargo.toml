@@ -1,0 +1,10 @@
+[package]
+name = "nevermind-lexer"
+version = "0.1.0"
+edition = "2021"
+description = "Lexer for Nevermind"
+
+[dependencies]
+nevermind-common = { path = "../common" }
+nevermind-ast = { path = "../ast" }
+thiserror = "1.0"
