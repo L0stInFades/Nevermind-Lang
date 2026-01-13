@@ -97,12 +97,14 @@ impl<'a> Lexer<'a> {
             let dedent_count = self.indent_stack.len() - 1;
             if dedent_count > 0 {
                 self.indent_stack.truncate(1);
-                self.pending_dedents = dedent_count - 1;
-                return Ok(Token::new(
-                    TokenType::Delimiter(Delimiter::Semicolon),
-                    Span::point(self.location.clone()),
-                    "\n".to_string(),
-                ));
+                if dedent_count > 1 {
+                    self.pending_dedents = dedent_count - 1;
+                    return Ok(Token::new(
+                        TokenType::Delimiter(Delimiter::Semicolon),
+                        Span::point(self.location.clone()),
+                        "\n".to_string(),
+                    ));
+                }
             }
 
             return Ok(Token::new(
@@ -463,6 +465,15 @@ impl<'a> Lexer<'a> {
 
         let span = Span::new(start, self.location.clone());
 
+        // Check if it's an operator (like "and", "or", "not")
+        if let Some(op) = Operator::from_str(&text) {
+            return Ok(Token::new(
+                TokenType::Operator(op),
+                span,
+                text,
+            ));
+        }
+
         // Check if it's a keyword
         if let Some(keyword) = Keyword::from_str(&text) {
             return Ok(Token::new(
@@ -508,61 +519,41 @@ impl<'a> Lexer<'a> {
     /// Lex an operator
     fn lex_operator_or_keyword(&mut self) -> Result<Option<Token>> {
         let start = self.location.clone();
-        let mut text = String::new();
 
-        // Try to match the longest possible operator
-        while let Some(&c) = self.chars.peek() {
-            if matches!(c, '+' | '-' | '*' | '/' | '%' | '=' |
-                        '!' | '<' | '>' | '|' | '&' | '^' | '~' |
-                        '.' | '?' | '$' | ':')
-            {
-                text.push(c);
-                self.advance();
-            } else {
-                break;
+        // First, try to match multi-character operators by peeking ahead
+        let c1 = self.peek();
+        let c2 = self.peek2();
+
+        // Try 3-character operators first
+        if let (Some(c1), Some(c2), Some(c3)) = (c1, c2, self.chars.clone().nth(2)) {
+            let three_char = format!("{}{}{}", c1, c2, c3);
+            if let Some(op) = Operator::from_str(&three_char) {
+                self.advance(); // consume c1
+                self.advance(); // consume c2
+                self.advance(); // consume c3
+                let span = Span::new(start, self.location.clone());
+                return Ok(Some(Token::new(TokenType::Operator(op), span, three_char)));
             }
         }
 
-        if text.is_empty() {
-            return Ok(None);
-        }
-
-        let span = Span::new(start, self.location.clone());
-
-        // Check if it's a known operator
-        if let Some(op) = Operator::from_str(&text) {
-            return Ok(Some(Token::new(
-                TokenType::Operator(op),
-                span,
-                text,
-            )));
-        }
-
-        // Check if it's a multi-character keyword (like "and", "or")
-        if let Some(keyword) = Keyword::from_str(&text) {
-            return Ok(Some(Token::new(
-                TokenType::Keyword(keyword),
-                span,
-                text,
-            )));
-        }
-
-        // Single-character operators
-        if text.len() == 1 {
-            if let Some(op) = Operator::from_str(&text) {
-                return Ok(Some(Token::new(
-                    TokenType::Operator(op),
-                    span,
-                    text,
-                )));
+        // Try 2-character operators
+        if let (Some(c1), Some(c2)) = (c1, c2) {
+            let two_char = format!("{}{}", c1, c2);
+            if let Some(op) = Operator::from_str(&two_char) {
+                self.advance(); // consume c1
+                self.advance(); // consume c2
+                let span = Span::new(start, self.location.clone());
+                return Ok(Some(Token::new(TokenType::Operator(op), span, two_char)));
             }
+        }
 
-            if let Some(delimiter) = Delimiter::from_char(text.chars().next().unwrap()) {
-                return Ok(Some(Token::new(
-                    TokenType::Delimiter(delimiter),
-                    span,
-                    text,
-                )));
+        // Try 1-character operators
+        if let Some(c) = c1 {
+            let one_char = format!("{}", c);
+            if let Some(op) = Operator::from_str(&one_char) {
+                self.advance(); // consume c1
+                let span = Span::new(start, self.location.clone());
+                return Ok(Some(Token::new(TokenType::Operator(op), span, one_char)));
             }
         }
 

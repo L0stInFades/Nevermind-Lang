@@ -15,7 +15,11 @@
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(cargo test:*)",
+      "Bash(RUST_BACKTRACE=1 cargo test:*)",
+      "Bash(DEBUG_LEXER=1 cargo test:*)",
+      "Bash(cargo run:*)"
     ]
   }
 }

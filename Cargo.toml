@@ -17,6 +17,9 @@ nevermind-ast = { path = "crates/ast" }
 nevermind-lexer = { path = "crates/lexer" }
 nevermind-parser = { path = "crates/parser" }
 nevermind-name-resolver = { path = "crates/name-resolver" }
+nevermind-type-checker = { path = "crates/type-checker" }
+nevermind-mir = { path = "crates/mir" }
+nevermind-codegen = { path = "crates/codegen" }
 
 # CLI
 clap = { version = "4.4", features = ["derive"] }
@@ -32,6 +35,8 @@ members = [
     "crates/ast",
     "crates/common",
     "crates/name-resolver",
+    "crates/type-checker",
+    "crates/mir", "crates/codegen",
 ]
 
 [workspace.dependencies]

@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::scope::Scope;
 use crate::symbol::Symbol;
-use crate::error::{NameError, Result};
+use crate::error::{NameError, NameErrorKind, Result};
 
 /// A symbol table managing nested scopes
 #[derive(Clone)]

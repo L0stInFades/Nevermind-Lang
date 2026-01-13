@@ -25,10 +25,6 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Emit Python bytecode
-        #[arg(long)]
-        python: bool,
-
         /// Parse only (don't compile)
         #[arg(long)]
         parse_only: bool,
@@ -78,8 +74,8 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Compile { input, output, python, parse_only } => {
-            compile(input, output, python, parse_only)
+        Commands::Compile { input, output, parse_only } => {
+            compile(input, output, parse_only)
         }
         Commands::Run { input, args } => run(input, args),
         Commands::Repl => repl(),
@@ -98,7 +94,6 @@ fn main() {
 fn compile(
     input: PathBuf,
     output: Option<PathBuf>,
-    python: bool,
     parse_only: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Compiling: {:?}", input);
@@ -110,24 +105,66 @@ fn compile(
     let mut lexer = nevermind_lexer::Lexer::new(&source);
     let tokens = lexer.tokenize()?;
 
-    println!("  Tokenized {} tokens", tokens.len());
-
-    if parse_only {
-        // Just show the tokens
-        for token in &tokens {
-            println!("    {:?}", token.kind);
-        }
-        return Ok(());
-    }
+    println!("  ✓ Lexical analysis passed ({} tokens)", tokens.len());
 
     // Parse the AST
     let mut parser = nevermind_parser::Parser::from_tokens(tokens);
     let statements = parser.parse()?;
 
-    println!("  Parsed {} statements", statements.len());
+    println!("  ✓ Syntax analysis passed ({} statements)", statements.len());
 
-    // TODO: Type checking
-    // TODO: Code generation
+    if parse_only {
+        // Just show AST
+        for (i, stmt) in statements.iter().enumerate() {
+            println!("    [{}] {:?}", i, stmt);
+        }
+        return Ok(());
+    }
+
+    // Name resolution
+    let mut resolver = nevermind_name_resolver::NameResolver::new();
+    let name_scope = match resolver.resolve(&statements) {
+        Ok(scope) => scope,
+        Err(errors) => {
+            eprintln!("  Name resolution errors: {}", errors.len());
+            for error in &errors {
+                eprintln!("    - {}: {}", error.span, error.message);
+            }
+            return Err(format!("Name resolution failed with {} errors", errors.len()).into());
+        }
+    };
+
+    let _ = name_scope; // Suppress unused warning
+
+    println!("  ✓ Name resolution passed");
+
+    // Type checking
+    let mut checker = nevermind_type_checker::TypeChecker::new();
+    checker.check(&statements)?;
+
+    println!("  ✓ Type checking passed");
+
+    // Lower to MIR
+    let mir_program = nevermind_mir::lower_program(&statements)?;
+
+    println!("  ✓ MIR lowering passed");
+
+    // Code generation
+    let python_code = nevermind_codegen::generate(&mir_program)?;
+
+    println!("  ✓ Code generation passed");
+
+    // Determine output file
+    let output = output.unwrap_or_else(|| {
+        let mut out = input.clone();
+        out.set_extension("py");
+        out
+    });
+
+    // Write output
+    fs::write(&output, python_code)?;
+
+    println!("  ✓ Output written to: {:?}", output);
 
     Ok(())
 }
@@ -137,10 +174,27 @@ fn run(input: PathBuf, args: Vec<String>) -> Result<(), Box<dyn std::error::Erro
     println!("Running: {:?}", input);
     println!("Args: {:?}", args);
 
-    // For now, just compile it
-    compile(input, None, false, false)?;
+    // Compile to Python
+    let py_output = {
+        let mut out = input.clone();
+        out.set_extension("py");
+        out
+    };
 
-    // TODO: Execute the compiled code
+    compile(input.clone(), Some(py_output.clone()), false)?;
+
+    // Run with Python
+    println!("\nExecuting with Python...");
+
+    let mut cmd = std::process::Command::new("python");
+    cmd.arg(&py_output);
+    cmd.args(&args);
+
+    let status = cmd.spawn()?.wait()?;
+
+    if !status.success() {
+        return Err(format!("Python execution failed with status: {}", status).into());
+    }
 
     Ok(())
 }
@@ -150,16 +204,12 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
     println!("Nevermind REPL v0.1.0");
     println!("Type 'exit' or Ctrl-D to exit\n");
 
-    let mut input = String::new();
-    let mut indent_level = 0;
+    let _input = String::new();
+    let _indent_level = 0;
 
     loop {
         // Show prompt
-        let prompt = if indent_level == 0 {
-            ">>> "
-        } else {
-            &"  ".repeat(indent_level)
-        };
+        let prompt = ">>> ";
 
         print!("{}", prompt);
         use std::io::Write;
@@ -213,8 +263,30 @@ fn check(input: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Syntax analysis passed");
     println!("  ✓ Parsed {} statements", statements.len());
 
-    // TODO: Type checking
-    println!("  ⚠ Type checking not yet implemented");
+    // Name resolution
+    let mut resolver = nevermind_name_resolver::NameResolver::new();
+    let name_scope = match resolver.resolve(&statements) {
+        Ok(scope) => scope,
+        Err(errors) => {
+            eprintln!("  Name resolution errors: {}", errors.len());
+            for error in &errors {
+                eprintln!("    - {}: {}", error.span, error.message);
+            }
+            return Err(format!("Name resolution failed with {} errors", errors.len()).into());
+        }
+    };
+
+    let _ = name_scope; // Suppress unused warning
+
+    println!("  ✓ Name resolution passed");
+
+    // Type checking
+    let mut checker = nevermind_type_checker::TypeChecker::new();
+    checker.check(&statements)?;
+
+    println!("  ✓ Type checking passed");
+
+    println!("\n  No errors found!");
 
     Ok(())
 }
@@ -224,7 +296,7 @@ fn fmt(inputs: Vec<PathBuf>, write: bool, check: bool) -> Result<(), Box<dyn std
     println!("Formatting: {:?}", inputs);
 
     for input in inputs {
-        let source = fs::read_to_string(&input)?;
+        let _source = fs::read_to_string(&input)?;
 
         // TODO: Implement formatting
         println!("  Formatting: {:?}", input);

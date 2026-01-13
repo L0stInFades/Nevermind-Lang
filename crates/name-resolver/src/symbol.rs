@@ -165,6 +165,6 @@ mod tests {
 
         assert_eq!(func.name, "foo");
         assert!(func.is_function());
-        assert!(!var.is_mutable());
+        assert!(!func.is_mutable());
     }
 }

@@ -1,0 +1,17 @@
+[package]
+name = "nevermind-type-checker"
+version = "0.1.0"
+edition = "2021"
+description = "Type checker for the Nevermind programming language"
+
+[dependencies]
+# Local crates
+nevermind-common = { path = "../common" }
+nevermind-ast = { path = "../ast" }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Data structures
+indexmap = "2.0"

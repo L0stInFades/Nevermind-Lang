@@ -103,7 +103,7 @@ mod tests {
         let mut loc3 = loc2.clone();
         loc3.advance_str(" world");
 
-        let span1 = Span::new(loc1.clone(), loc2);
+        let span1 = Span::new(loc1.clone(), loc2.clone());
         let span2 = Span::new(loc2, loc3);
         let merged = span1.merge(&span2);
 

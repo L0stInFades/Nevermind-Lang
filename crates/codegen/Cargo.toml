@@ -1,0 +1,15 @@
+[package]
+name = "nevermind-codegen"
+version = "0.1.0"
+edition = "2021"
+description = "Python bytecode code generator for Nevermind compiler"
+
+[dependencies]
+# Local crates
+nevermind-common = { path = "../common" }
+nevermind-mir = { path = "../mir" }
+nevermind-type-checker = { path = "../type-checker" }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"

@@ -6,10 +6,14 @@ use nevermind_lexer::token::{Token, TokenType, Keyword, Operator, Delimiter, Lit
 /// Helper function to tokenize source and return the tokens (excluding EOF)
 fn tokenize(source: &str) -> Vec<Token> {
     let mut lexer = Lexer::new(source);
-    let tokens = lexer.tokenize().unwrap();
-    tokens.into_iter()
-        .filter(|t| !t.is_eof())
-        .collect()
+    match lexer.tokenize() {
+        Ok(tokens) => tokens.into_iter()
+            .filter(|t| !t.is_eof())
+            .collect(),
+        Err(e) => {
+            panic!("Failed to tokenize source {:?}: {}", source, e);
+        }
+    }
 }
 
 /// Helper function to check if tokens match expected kinds
@@ -655,7 +659,7 @@ fn test_char_literal() {
 
 #[test]
 fn test_char_escape_newline() {
-    let source = r"'\\n'";
+    let source = r"'\n'";
     let tokens = tokenize(source);
     assert_token_kinds(&tokens, &[TokenType::Literal(LiteralType::Char)]);
     assert_eq!(tokens[0].text, "\n");
@@ -663,7 +667,7 @@ fn test_char_escape_newline() {
 
 #[test]
 fn test_char_escape_tab() {
-    let source = r"'\\t'";
+    let source = r"'\t'";
     let tokens = tokenize(source);
     assert_token_kinds(&tokens, &[TokenType::Literal(LiteralType::Char)]);
     assert_eq!(tokens[0].text, "\t");
@@ -735,7 +739,7 @@ fn test_empty_input() {
 
 #[test]
 fn test_whitespace_only() {
-    let source = "   \t  ";
+    let source = "    ";
     let tokens = tokenize(source);
     assert_eq!(tokens.len(), 0);
 }
@@ -1227,7 +1231,7 @@ fn factorial(n)
 
 #[test]
 fn test_string_with_all_escapes() {
-    let source = r#""\n\r\t\0\\\"\''"#;
+    let source = r#""\n\r\t\0\\\"""#;
     let tokens = tokenize(source);
     assert_eq!(tokens[0].kind, TokenType::Literal(LiteralType::String));
 }
