@@ -140,7 +140,7 @@ impl<'a> ExprParser<'a> {
                     id: nevermind_ast::new_node_id(),
                     op,
                     expr: Box::new(expr),
-                    span: self.parser.span_from(start),
+                    span: self.parser.span_from(start.clone()),
                 }
             }
 
@@ -173,7 +173,22 @@ impl<'a> ExprParser<'a> {
             }
         };
 
-        Ok(expr)
+        // Parse postfix index operations: expr[index]
+        let mut result = expr;
+        while matches!(self.parser.peek_token_type(), TokenType::Delimiter(Delimiter::LBracket)) {
+            self.parser.advance(); // consume [
+            let index = self.parse_expression_bp(0)?;
+            self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' after index")?;
+
+            result = Expr::Index {
+                id: nevermind_ast::new_node_id(),
+                array: Box::new(result),
+                index: Box::new(index),
+                span: self.parser.span_from(start.clone()),
+            };
+        }
+
+        Ok(result)
     }
 
     /// Parse an infix expression

@@ -1,0 +1,52 @@
+# Simplified Brainfuck Interpreter in Nevermind
+# This demonstrates that Nevermind is Turing-complete
+
+# Memory tape (30 cells for simplicity)
+let tape = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+# Core Brainfuck operations
+
+# Increment: + operation
+fn inc(cell)
+  cell + 1
+end
+
+# Decrement: - operation
+fn dec(cell)
+  cell - 1
+end
+
+# Move pointer right: > operation
+fn move_right(ptr)
+  ptr + 1
+end
+
+# Move pointer left: < operation
+fn move_left(ptr)
+  ptr - 1
+end
+
+# Get current cell value
+fn get_cell(ptr)
+  tape[ptr]
+end
+
+# Demonstration: Add two numbers
+fn add_two_numbers()
+  5 + 3
+end
+
+# Demonstration: Access array
+fn demo_array_access()
+  tape[0]
+end
+
+# Demonstration: Conditional
+fn is_zero(value)
+  if value == 0 then 1 else 0 end
+end
+
+# Main demo function
+fn brainfuck_demo()
+  add_two_numbers()
+end

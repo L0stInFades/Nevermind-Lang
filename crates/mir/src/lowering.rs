@@ -1,7 +1,7 @@
 //! MIR lowering - convert typed AST to MIR
 
 use super::{MirExpr, MirExprStmt, MirBlock, MirStmt, BinOp, UnaryOp, Literal, NodeId, Param};
-use nevermind_ast::{Expr, Stmt};
+use nevermind_ast::{Expr, Stmt, op::{BinaryOp, ComparisonOp, LogicalOp}};
 use nevermind_type_checker::Type;
 
 /// Error during MIR lowering
@@ -98,16 +98,17 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
 
         Expr::Binary {
             left,
-            op: _,
+            op,
             right,
             id,
             ..
         } => {
             let mir_left = Box::new(lower_expression(left)?);
             let mir_right = Box::new(lower_expression(right)?);
+            let mir_op = map_binary_op(op);
 
             Ok(MirExpr::Binary {
-                op: BinOp::Add, // TODO: Map operator
+                op: mir_op,
                 left: mir_left,
                 right: mir_right,
                 ty: Type::Unit,
@@ -117,16 +118,17 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
 
         Expr::Comparison {
             left,
-            op: _,
+            op,
             right,
             id,
             ..
         } => {
             let mir_left = Box::new(lower_expression(left)?);
             let mir_right = Box::new(lower_expression(right)?);
+            let mir_op = map_comparison_op(op);
 
             Ok(MirExpr::Binary {
-                op: BinOp::Eq, // TODO: Map operator
+                op: mir_op,
                 left: mir_left,
                 right: mir_right,
                 ty: Type::Bool,
@@ -198,6 +200,45 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
                 statements: mir_statements,
                 expr: None,
                 ty: Type::Unit,
+                id: *id,
+            })
+        }
+
+        Expr::List { elements, id, .. } => {
+            let mir_elements = elements
+                .iter()
+                .map(lower_expression)
+                .collect::<Result<Vec<_>>>()?;
+
+            Ok(MirExpr::List {
+                elements: mir_elements,
+                ty: Type::List(Box::new(Type::Int)), // TODO: Infer element type
+                id: *id,
+            })
+        }
+
+        Expr::If { condition, then_branch, else_branch, id, .. } => {
+            let mir_condition = Box::new(lower_expression(condition)?);
+            let mir_then = Box::new(lower_expression(then_branch)?);
+            let mir_else = Box::new(lower_expression(else_branch)?);
+
+            Ok(MirExpr::If {
+                condition: mir_condition,
+                then_branch: mir_then,
+                else_branch: mir_else,
+                ty: Type::Unit, // TODO: Infer result type
+                id: *id,
+            })
+        }
+
+        Expr::Index { array, index, id, .. } => {
+            let mir_array = Box::new(lower_expression(array)?);
+            let mir_index = Box::new(lower_expression(index)?);
+
+            Ok(MirExpr::Index {
+                array: mir_array,
+                index: mir_index,
+                ty: Type::Int, // TODO: Infer element type
                 id: *id,
             })
         }
@@ -294,6 +335,31 @@ fn resolve_type_annotation(ty: &nevermind_ast::TypeAnnotation) -> Option<Type> {
         },
         nevermind_ast::types::Type::Identifier(name) => Some(Type::User(name.clone())),
         _ => Some(Type::Unit),
+    }
+}
+
+/// Map an AST binary operator to MIR binary operator
+fn map_binary_op(op: &nevermind_ast::op::BinaryOp) -> BinOp {
+    match op {
+        nevermind_ast::op::BinaryOp::Add => BinOp::Add,
+        nevermind_ast::op::BinaryOp::Sub => BinOp::Sub,
+        nevermind_ast::op::BinaryOp::Mul => BinOp::Mul,
+        nevermind_ast::op::BinaryOp::Div => BinOp::Div,
+        nevermind_ast::op::BinaryOp::Mod => BinOp::Mod,
+        nevermind_ast::op::BinaryOp::Pow => BinOp::Pow,
+        _ => BinOp::Add, // Fallback
+    }
+}
+
+/// Map an AST comparison operator to MIR binary operator
+fn map_comparison_op(op: &nevermind_ast::op::ComparisonOp) -> BinOp {
+    match op {
+        nevermind_ast::op::ComparisonOp::Eq => BinOp::Eq,
+        nevermind_ast::op::ComparisonOp::Ne => BinOp::Ne,
+        nevermind_ast::op::ComparisonOp::Lt => BinOp::Lt,
+        nevermind_ast::op::ComparisonOp::Le => BinOp::Le,
+        nevermind_ast::op::ComparisonOp::Gt => BinOp::Gt,
+        nevermind_ast::op::ComparisonOp::Ge => BinOp::Ge,
     }
 }
 

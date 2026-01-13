@@ -1,8 +1,0 @@
-fn add(a, b)
-do
-a + b
-end
-end
-let x = 10
-let y = add(x, 20)
-print y

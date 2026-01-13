@@ -408,6 +408,11 @@ impl NameResolver {
 
                 Ok(())
             }
+
+            Expr::Index { array, index, .. } => {
+                self.resolve_expression(array)?;
+                self.resolve_expression(index)
+            }
         }
     }
 

@@ -49,6 +49,7 @@ impl PythonGenerator {
             BinOp::Mul => "*",
             BinOp::Div => "/",
             BinOp::Mod => "%",
+            BinOp::Pow => "**",
             BinOp::Eq => "==",
             BinOp::Ne => "!=",
             BinOp::Lt => "<",
@@ -265,6 +266,37 @@ impl CodeEmitter for PythonGenerator {
                     let chunk = self.emit_expr(e)?;
                     output.add_line(chunk.code.trim());
                 }
+            }
+
+            MirExpr::List { elements, .. } => {
+                let mut element_strings = Vec::new();
+                for elem in elements {
+                    let chunk = self.emit_expr(elem)?;
+                    element_strings.push(chunk.code.trim().to_string());
+                }
+                output.add_line(&format!("[{}]", element_strings.join(", ")));
+            }
+
+            MirExpr::If { condition, then_branch, else_branch, .. } => {
+                let cond_chunk = self.emit_expr(condition)?;
+                let then_chunk = self.emit_expr(then_branch)?;
+                let else_chunk = self.emit_expr(else_branch)?;
+
+                output.add_line(&format!("({} if {} else {})",
+                    then_chunk.code.trim(),
+                    cond_chunk.code.trim(),
+                    else_chunk.code.trim()
+                ));
+            }
+
+            MirExpr::Index { array, index, .. } => {
+                let array_chunk = self.emit_expr(array)?;
+                let index_chunk = self.emit_expr(index)?;
+
+                output.add_line(&format!("{}[{}]",
+                    array_chunk.code.trim(),
+                    index_chunk.code.trim()
+                ));
             }
         }
 

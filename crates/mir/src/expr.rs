@@ -52,6 +52,30 @@ pub enum MirExpr {
         ty: Type,
         id: NodeId,
     },
+
+    /// List literal
+    List {
+        elements: Vec<MirExpr>,
+        ty: Type,
+        id: NodeId,
+    },
+
+    /// If expression
+    If {
+        condition: Box<MirExpr>,
+        then_branch: Box<MirExpr>,
+        else_branch: Box<MirExpr>,
+        ty: Type,
+        id: NodeId,
+    },
+
+    /// Index expression: array[index]
+    Index {
+        array: Box<MirExpr>,
+        index: Box<MirExpr>,
+        ty: Type,
+        id: NodeId,
+    },
 }
 
 impl MirExpr {
@@ -64,6 +88,9 @@ impl MirExpr {
             MirExpr::Unary { ty, .. } => ty,
             MirExpr::Call { ty, .. } => ty,
             MirExpr::Block { ty, .. } => ty,
+            MirExpr::List { ty, .. } => ty,
+            MirExpr::If { ty, .. } => ty,
+            MirExpr::Index { ty, .. } => ty,
         }
     }
 
@@ -76,6 +103,9 @@ impl MirExpr {
             MirExpr::Unary { id, .. } => *id,
             MirExpr::Call { id, .. } => *id,
             MirExpr::Block { id, .. } => *id,
+            MirExpr::List { id, .. } => *id,
+            MirExpr::If { id, .. } => *id,
+            MirExpr::Index { id, .. } => *id,
         }
     }
 
@@ -97,6 +127,7 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+    Pow,
 
     // Comparison
     Eq,

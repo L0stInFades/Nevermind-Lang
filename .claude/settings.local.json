@@ -19,7 +19,8 @@
       "Bash(cargo test:*)",
       "Bash(RUST_BACKTRACE=1 cargo test:*)",
       "Bash(DEBUG_LEXER=1 cargo test:*)",
-      "Bash(cargo run:*)"
+      "Bash(cargo run:*)",
+      "Bash(python:*)"
     ]
   }
 }

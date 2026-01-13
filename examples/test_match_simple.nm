@@ -1,8 +1,0 @@
-fn test()
-do
-  let x = 1
-  match x
-  { _ => print "wildcard" }
-  end
-end
-end

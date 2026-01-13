@@ -114,6 +114,14 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: Span,
     },
+
+    /// Index expression: array[index]
+    Index {
+        id: NodeId,
+        array: Box<Expr>,
+        index: Box<Expr>,
+        span: Span,
+    },
 }
 
 /// A function parameter
@@ -151,6 +159,7 @@ impl Expr {
             Expr::List { span, .. } => span,
             Expr::Map { span, .. } => span,
             Expr::Match { span, .. } => span,
+            Expr::Index { span, .. } => span,
         }
     }
 }

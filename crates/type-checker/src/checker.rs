@@ -502,6 +502,15 @@ impl TypeChecker {
                     Ok(Type::Unit)
                 }
             }
+
+            Expr::Index { array, index, .. } => {
+                // Infer array and index types
+                let array_ty = self.infer_expression(array)?;
+                let _index_ty = self.infer_expression(index)?;
+
+                // TODO: Check that array is a list type and return element type
+                Ok(array_ty)
+            }
         }
     }
 
@@ -624,6 +633,7 @@ mod ast_helpers {
             Expr::List { span, .. } => span.clone(),
             Expr::Map { span, .. } => span.clone(),
             Expr::Match { span, .. } => span.clone(),
+            Expr::Index { span, .. } => span.clone(),
         }
     }
 
