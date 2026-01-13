@@ -5,6 +5,19 @@ All notable changes to the Nevermind programming language will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-01-13
+
+### Added
+- Lexer boundary tests for tab indentation rejection and chained dedent emission.
+- End-to-end typing edge cases in `tests/edge_cases.rs` covering mixed lists, map key constraints, and pipeline stage typing.
+
+### Changed
+- Parser allows an optional trailing `end` after function bodies and keeps `|>` pipelines distinct from `|...|` lambdas.
+- Documentation reorganized: legacy reports moved to `docs/archive/`, with `DOCUMENTATION_INDEX.md` and `docs/ARCHIVE.md` providing a clean map and historical summary.
+
+### Fixed
+- `!` is now recognized as the logical `not` operator in the lexer.
+
 ## [0.3.0] - 2025-01-13
 
 ### Added ✨

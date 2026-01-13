@@ -144,7 +144,7 @@ impl<'a> ExprParser<'a> {
                 }
             }
 
-            TokenType::Operator(Operator::Pipe) => {
+            TokenType::Operator(Operator::BitOr) => {
                 // Lambda expression: |param1, param2| -> expr
                 self.parser.advance();
                 self.parse_lambda()?
@@ -266,8 +266,6 @@ impl<'a> ExprParser<'a> {
 
                     Operator::Pipe => {
                         // Pipeline operator
-                        self.parser.consume_operator(Operator::Pipe, "expected '|' after first expression")?;
-
                         let mut stages = vec![lhs];
                         stages.push(self.parse_expression_bp(right_bp)?);
 

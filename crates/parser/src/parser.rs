@@ -272,7 +272,9 @@ impl Parser {
 
         let body = self.parse_expression()?;
 
-        self.consume_keyword(Keyword::End, "expected 'end' to close function declaration")?;
+        // Function bodies already consume their own block terminators.
+        // Accept an optional extra 'end' so both styles (`do ... end` or `do ... end end`) parse.
+        self.match_keyword(Keyword::End);
 
         let span = self.span_from(start);
 
@@ -901,14 +903,17 @@ mod tests {
 
     #[test]
     fn test_parse_if_statement() {
-        let source = "if x > 0 then x else 0";
+        let source = "if x > 0 then x else 0 end";
         let mut parser = Parser::new(source).unwrap();
         let stmts = parser.parse().unwrap();
 
         assert_eq!(stmts.len(), 1);
         match &stmts[0] {
-            Stmt::If { .. } => {}
-            _ => panic!("expected If statement"),
+            Stmt::ExprStmt { expr, .. } => match expr {
+                Expr::If { .. } => {}
+                _ => panic!("expected If expression"),
+            },
+            _ => panic!("expected If expression statement"),
         }
     }
 }

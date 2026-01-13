@@ -283,6 +283,7 @@ impl Operator {
             "and" => Some(Operator::And),
             "or" => Some(Operator::Or),
             "not" => Some(Operator::Not),
+            "!" => Some(Operator::Not),
             "&" => Some(Operator::BitAnd),
             "|" => Some(Operator::BitOr),
             "^" => Some(Operator::BitXor),

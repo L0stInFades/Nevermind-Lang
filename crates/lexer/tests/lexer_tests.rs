@@ -1103,6 +1103,31 @@ fn test_inconsistent_indentation() {
     // The test verifies the lexer handles it appropriately
 }
 
+#[test]
+fn test_tab_indentation_is_rejected() {
+    let source = "\tlet x = 1";
+    let mut lexer = Lexer::new(source);
+    let result = lexer.tokenize();
+    assert!(result.is_err());
+    if let Err(err) = result {
+        assert!(err.message.contains("tabs"), "expected tab indentation error, got {}", err.message);
+    }
+}
+
+#[test]
+fn test_multiple_dedents_emit_semicolons() {
+    let source = "fn foo()\n  let x = 1\n    let y = 2\nlet z = 3";
+    let tokens = tokenize(source);
+    let semicolons = tokens.iter()
+        .filter(|t| matches!(t.kind, TokenType::Delimiter(Delimiter::Semicolon)))
+        .count();
+    assert!(
+        semicolons >= 2,
+        "expected at least 2 semicolon tokens for dedents, got {}",
+        semicolons
+    );
+}
+
 // ============================================================================
 // Token Property Tests
 // ============================================================================
