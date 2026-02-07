@@ -61,6 +61,13 @@ pub enum Pattern {
         end: Box<Pattern>,
         span: Span,
     },
+
+    /// Constructor pattern (e.g., Ok(value), Error(msg))
+    Constructor {
+        name: String,
+        args: Vec<Pattern>,
+        span: Span,
+    },
 }
 
 /// A field in a struct pattern
@@ -84,6 +91,7 @@ impl Pattern {
             Pattern::ListCons { span, .. } => span,
             Pattern::Struct { span, .. } => span,
             Pattern::Range { span, .. } => span,
+            Pattern::Constructor { span, .. } => span,
         }
     }
 
@@ -99,6 +107,7 @@ impl Pattern {
             Pattern::ListCons { .. } => true,
             Pattern::Struct { .. } => true,
             Pattern::Range { .. } => true,
+            Pattern::Constructor { .. } => true,
         }
     }
 
@@ -134,6 +143,11 @@ impl Pattern {
                     .collect()
             }
             Pattern::Range { .. } => vec![],
+            Pattern::Constructor { args, .. } => {
+                args.iter()
+                    .flat_map(|p| p.collect_variables())
+                    .collect()
+            }
         }
     }
 }

@@ -413,6 +413,15 @@ impl NameResolver {
                 self.resolve_expression(array)?;
                 self.resolve_expression(index)
             }
+
+            Expr::Assign { target, value, .. } => {
+                self.resolve_expression(target)?;
+                self.resolve_expression(value)
+            }
+
+            Expr::MemberAccess { object, .. } => {
+                self.resolve_expression(object)
+            }
         }
     }
 
@@ -458,6 +467,12 @@ impl NameResolver {
             Pattern::Range { start, end, .. } => {
                 self.resolve_pattern(start)?;
                 self.resolve_pattern(end)?;
+                Ok(())
+            }
+            Pattern::Constructor { args, .. } => {
+                for arg in args {
+                    self.resolve_pattern(arg)?;
+                }
                 Ok(())
             }
         }

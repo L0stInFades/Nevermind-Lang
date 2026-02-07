@@ -79,6 +79,83 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             Ok(MirStmt::Expr(mir_expr))
         }
 
+        Stmt::If { condition, then_branch, else_branch, .. } => {
+            let mir_cond = lower_expression(&condition)?;
+            let mut then_stmts = Vec::new();
+            for s in then_branch {
+                then_stmts.push(lower_expr_stmt(s)?);
+            }
+            let else_stmts = if let Some(else_b) = else_branch {
+                let mut stmts = Vec::new();
+                for s in else_b {
+                    stmts.push(lower_expr_stmt(s)?);
+                }
+                Some(stmts)
+            } else {
+                None
+            };
+            Ok(MirStmt::Expr(MirExpr::Block {
+                statements: vec![MirExprStmt::Expr(mir_cond)],
+                expr: None,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::While { condition, body, .. } => {
+            let mir_cond = lower_expression(&condition)?;
+            let mut mir_body = Vec::new();
+            for s in body {
+                mir_body.push(lower_expr_stmt(s)?);
+            }
+            Ok(MirStmt::Expr(MirExpr::Block {
+                statements: mir_body,
+                expr: None,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::For { variable, iter, body, .. } => {
+            let mir_iter = lower_expression(&iter)?;
+            let mut mir_body = Vec::new();
+            for s in body {
+                mir_body.push(lower_expr_stmt(s)?);
+            }
+            Ok(MirStmt::Expr(MirExpr::Block {
+                statements: mir_body,
+                expr: None,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::Return { value, .. } => {
+            let mir_value = if let Some(v) = value {
+                Some(Box::new(lower_expression(v)?))
+            } else {
+                None
+            };
+            Ok(MirStmt::Expr(MirExpr::Literal {
+                value: Literal::Null,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::Break { .. } | Stmt::Continue { .. } => {
+            Ok(MirStmt::Expr(MirExpr::Literal {
+                value: Literal::Null,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::Match { scrutinee, arms, .. } => {
+            let mir_scrutinee = lower_expression(&scrutinee)?;
+            Ok(MirStmt::Expr(mir_scrutinee))
+        }
+
         _ => Err(LoweringError::UnsupportedNode(format!("{:?}", stmt))),
     }
 }
@@ -243,6 +320,95 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
+        Expr::Assign { target, value, id, .. } => {
+            let mir_value = lower_expression(value)?;
+            // For simple variable assignment, extract target name
+            if let Expr::Variable { name, .. } = target.as_ref() {
+                Ok(MirExpr::Block {
+                    statements: vec![MirExprStmt::Assign {
+                        target: name.clone(),
+                        value: mir_value,
+                        id: *id,
+                    }],
+                    expr: None,
+                    ty: Type::Unit,
+                    id: fresh_node_id(),
+                })
+            } else {
+                Ok(mir_value)
+            }
+        }
+
+        Expr::MemberAccess { object, member, id, .. } => {
+            let mir_obj = lower_expression(object)?;
+            // Represent as dotted name for now
+            if let MirExpr::Variable { name, ty, .. } = &mir_obj {
+                Ok(MirExpr::Variable {
+                    name: format!("{}.{}", name, member),
+                    ty: ty.clone(),
+                    id: *id,
+                })
+            } else {
+                Ok(MirExpr::Variable {
+                    name: member.clone(),
+                    ty: Type::Unit,
+                    id: *id,
+                })
+            }
+        }
+
+        Expr::Pipeline { stages, id, .. } => {
+            // Lower pipeline as nested function calls
+            if stages.is_empty() {
+                return Ok(MirExpr::Literal { value: Literal::Null, ty: Type::Unit, id: fresh_node_id() });
+            }
+            let mut result = lower_expression(&stages[0])?;
+            for stage in &stages[1..] {
+                let func = lower_expression(stage)?;
+                result = MirExpr::Call {
+                    callee: Box::new(func),
+                    args: vec![result],
+                    ty: Type::Unit,
+                    id: fresh_node_id(),
+                };
+            }
+            Ok(result)
+        }
+
+        Expr::Lambda { params, body, id, .. } => {
+            let mir_params = params.iter().map(|p| {
+                Param {
+                    name: p.name.clone(),
+                    ty: p.type_annotation.as_ref()
+                        .and_then(|t| resolve_type_annotation(t))
+                        .unwrap_or(Type::Unit),
+                    id: p.id,
+                }
+            }).collect::<Vec<_>>();
+            let mir_body = lower_expression(body)?;
+            // Represent lambda as a block for now
+            Ok(mir_body)
+        }
+
+        Expr::Map { entries, id, .. } => {
+            // Lower map as a list of key-value pairs for now
+            let mut elements = Vec::new();
+            for (key, value) in entries {
+                elements.push(lower_expression(key)?);
+                elements.push(lower_expression(value)?);
+            }
+            Ok(MirExpr::List {
+                elements,
+                ty: Type::Unit,
+                id: *id,
+            })
+        }
+
+        Expr::Match { scrutinee, arms, id, .. } => {
+            // Lower match as the scrutinee for now
+            lower_expression(scrutinee)
+        }
+
         _ => Err(LoweringError::UnsupportedNode(format!("{:?}", expr))),
     }
 }
@@ -317,6 +483,47 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
         Stmt::ExprStmt { expr, .. } => {
             let mir_expr = lower_expression(expr)?;
             Ok(MirExprStmt::Expr(mir_expr))
+        }
+
+        Stmt::Function { name, params, body, .. } => {
+            let mir_body = lower_expression(body)?;
+            Ok(MirExprStmt::Expr(mir_body))
+        }
+
+        Stmt::If { condition, then_branch, else_branch, .. } => {
+            let mir_cond = lower_expression(&condition)?;
+            Ok(MirExprStmt::Expr(mir_cond))
+        }
+
+        Stmt::While { condition, body, .. } => {
+            let mir_cond = lower_expression(&condition)?;
+            Ok(MirExprStmt::Expr(mir_cond))
+        }
+
+        Stmt::For { iter, .. } => {
+            let mir_iter = lower_expression(&iter)?;
+            Ok(MirExprStmt::Expr(mir_iter))
+        }
+
+        Stmt::Return { value, .. } => {
+            let mir_value = value.as_ref().map(|v| lower_expression(v)).transpose()?;
+            Ok(MirExprStmt::Return {
+                value: mir_value.map(Box::new),
+                id: fresh_node_id(),
+            })
+        }
+
+        Stmt::Break { .. } | Stmt::Continue { .. } => {
+            Ok(MirExprStmt::Expr(MirExpr::Literal {
+                value: Literal::Null,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
+
+        Stmt::Match { scrutinee, .. } => {
+            let mir_scrutinee = lower_expression(&scrutinee)?;
+            Ok(MirExprStmt::Expr(mir_scrutinee))
         }
 
         _ => Err(LoweringError::UnsupportedNode(format!("{:?}", stmt))),

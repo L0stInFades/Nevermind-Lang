@@ -11,7 +11,7 @@ use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 use nevermind_ast::{Expr, Stmt, Pattern, TypeAnnotation, Parameter};
 use nevermind_ast::stmt::MatchArm;
 use nevermind_ast::types::{Type, PrimitiveType};
-use nevermind_ast::op::{BinaryOp, ComparisonOp, UnaryOp, LogicalOp};
+// op module used indirectly through AST types
 
 use super::error::{ParseError, ParseResult};
 use super::expr_parser::ExprParser;
@@ -197,9 +197,10 @@ impl Parser {
                     }
                     else_branch = Some(stmts);
                 }
-            }
 
-            self.consume_keyword(Keyword::End, "expected 'end' to close if statement")?;
+                // Only require trailing 'end' when else is present
+                self.consume_keyword(Keyword::End, "expected 'end' to close if statement")?;
+            }
 
             let span = self.span_from(start);
 
@@ -264,17 +265,44 @@ impl Parser {
 
         let params = self.parse_parameters()?;
 
-        let return_type = if self.match_delimiter(Delimiter::Colon) {
+        let return_type = if self.match_delimiter(Delimiter::Colon) || self.match_operator(Operator::Arrow) {
             Some(self.parse_type_annotation()?)
         } else {
             None
         };
 
-        let body = self.parse_expression()?;
+        let raw_body = self.parse_expression()?;
 
-        // Function bodies already consume their own block terminators.
-        // Accept an optional extra 'end' so both styles (`do ... end` or `do ... end end`) parse.
-        self.match_keyword(Keyword::End);
+        // Unwrap single-expression blocks: if the body is a Block with exactly
+        // one statement, unwrap to just the expression for cleaner AST
+        let body = match raw_body {
+            Expr::Block { ref statements, .. } => {
+                if statements.len() == 1 {
+                    match &statements[0] {
+                        Stmt::ExprStmt { ref expr, .. } => expr.clone(),
+                        Stmt::Match { id, scrutinee, arms, span, .. } => {
+                            // Convert Stmt::Match to Expr::Match
+                            Expr::Match {
+                                id: *id,
+                                scrutinee: Box::new(scrutinee.clone()),
+                                arms: arms.iter().map(|arm| {
+                                    nevermind_ast::expr::MatchArm {
+                                        pattern: arm.pattern.clone(),
+                                        guard: arm.guard.as_ref().map(|g| Box::new(g.clone())),
+                                        body: Box::new(arm.body.clone()),
+                                    }
+                                }).collect(),
+                                span: span.clone(),
+                            }
+                        }
+                        _ => raw_body,
+                    }
+                } else {
+                    raw_body
+                }
+            }
+            _ => raw_body,
+        };
 
         let span = self.span_from(start);
 
@@ -916,4 +944,5 @@ mod tests {
             _ => panic!("expected If expression statement"),
         }
     }
+
 }

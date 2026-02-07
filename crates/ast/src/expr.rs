@@ -122,6 +122,22 @@ pub enum Expr {
         index: Box<Expr>,
         span: Span,
     },
+
+    /// Assignment expression: target = value
+    Assign {
+        id: NodeId,
+        target: Box<Expr>,
+        value: Box<Expr>,
+        span: Span,
+    },
+
+    /// Member access: object.member
+    MemberAccess {
+        id: NodeId,
+        object: Box<Expr>,
+        member: String,
+        span: Span,
+    },
 }
 
 /// A function parameter
@@ -160,6 +176,8 @@ impl Expr {
             Expr::Map { span, .. } => span,
             Expr::Match { span, .. } => span,
             Expr::Index { span, .. } => span,
+            Expr::Assign { span, .. } => span,
+            Expr::MemberAccess { span, .. } => span,
         }
     }
 }
@@ -260,6 +278,12 @@ impl fmt::Display for Expr {
                     write!(f, "{}", elem)?;
                 }
                 write!(f, "]")
+            }
+            Expr::Assign { target, value, .. } => {
+                write!(f, "({} = {})", target, value)
+            }
+            Expr::MemberAccess { object, member, .. } => {
+                write!(f, "{}.{}", object, member)
             }
             _ => write!(f, "(expression)"),
         }

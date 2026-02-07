@@ -5,7 +5,7 @@ use nevermind_common::Span;
 use nevermind_lexer::{Token, TokenType};
 use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 
-use nevermind_ast::{Expr, Stmt, Parameter, MatchArm, TypeAnnotation, Literal};
+use nevermind_ast::{Expr, Parameter, MatchArm, Literal};
 use nevermind_ast::op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp};
 
 use super::error::{ParseError, ParseResult};
@@ -28,7 +28,7 @@ impl<'a> ExprParser<'a> {
         let start = self.parser.peek_span();
 
         // Parse the left-hand side
-        let mut lhs = self.parse_prefix()?;
+        let mut lhs = self.parse_prefix(min_bp)?;
 
         // Parse infix operators
         loop {
@@ -56,7 +56,7 @@ impl<'a> ExprParser<'a> {
     }
 
     /// Parse a prefix expression
-    fn parse_prefix(&mut self) -> ParseResult<Expr> {
+    fn parse_prefix(&mut self, min_bp: u8) -> ParseResult<Expr> {
         let start = self.parser.peek_span();
 
         let expr = match self.parser.peek_token_type() {
@@ -86,10 +86,63 @@ impl<'a> ExprParser<'a> {
 
             TokenType::Identifier => {
                 let token = self.parser.advance().unwrap();
-                Expr::Variable {
+                let var_expr = Expr::Variable {
                     id: nevermind_ast::new_node_id(),
-                    name: token.text,
-                    span: token.span,
+                    name: token.text.clone(),
+                    span: token.span.clone(),
+                };
+
+                // Check for command-style function call: identifier followed by
+                // a string literal, integer literal, identifier (as argument),
+                // or | (lambda argument). Only trigger at low precedence to avoid
+                // misinterpreting tokens inside higher-precedence subexpressions.
+                // For identifier arguments, require same line to avoid merging
+                // separate statements.
+                let same_line = self.parser.current.as_ref()
+                    .map(|t| t.span.start.line == token.span.start.line)
+                    .unwrap_or(false);
+
+                let is_command_call = if min_bp <= 7 {
+                    match self.parser.peek_token_type() {
+                        TokenType::Literal(LiteralType::String) if same_line => true,
+                        TokenType::Literal(LiteralType::Integer) if same_line => true,
+                        TokenType::Literal(LiteralType::Float) if same_line => true,
+                        TokenType::Identifier if same_line => true,
+                        TokenType::Operator(Operator::BitOr) if same_line => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+
+                if is_command_call {
+                    let mut args = Vec::new();
+
+                    // Check if first arg is a lambda
+                    if self.parser.check_operator(Operator::BitOr) {
+                        self.parser.advance(); // consume |
+                        let lambda = self.parse_lambda()?;
+                        args.push(lambda);
+                    } else {
+                        // Parse first argument (could be literal, identifier, or expression)
+                        args.push(self.parse_expression_bp(0)?);
+
+                        // Check for lambda argument after first arg
+                        if self.parser.check_operator(Operator::BitOr) {
+                            self.parser.advance(); // consume |
+                            let lambda = self.parse_lambda()?;
+                            args.push(lambda);
+                        }
+                    }
+
+                    Expr::Call {
+                        id: nevermind_ast::new_node_id(),
+                        callee: Box::new(var_expr),
+                        args,
+                        span: self.parser.span_from(start.clone()),
+                    }
+                } else {
+                    var_expr
                 }
             }
 
@@ -280,15 +333,58 @@ impl<'a> ExprParser<'a> {
                         }
                     }
 
+                    Operator::Assign => {
+                        let rhs = self.parse_expression_bp(right_bp)?;
+                        Expr::Assign {
+                            id: nevermind_ast::new_node_id(),
+                            target: Box::new(lhs),
+                            value: Box::new(rhs),
+                            span: self.parser.span_from(start),
+                        }
+                    }
+
                     Operator::Dot => {
                         // Field access or method call
                         let field = self.parser.consume_identifier("expected field name after '.'")?;
 
-                        Expr::Variable {
+                        let member_expr = Expr::MemberAccess {
                             id: nevermind_ast::new_node_id(),
-                            name: field,
-                            span: self.parser.span_from(start),
-                        }  // TODO: Implement proper member access
+                            object: Box::new(lhs),
+                            member: field.clone(),
+                            span: self.parser.span_from(start.clone()),
+                        };
+
+                        // Check if this is a method call: obj.method(args) or obj.method |lambda|
+                        if self.parser.check_delimiter(Delimiter::LParen) {
+                            // Will be handled by the normal call parsing via binding power
+                            member_expr
+                        } else if self.parser.check_operator(Operator::BitOr) {
+                            // Method call with lambda argument: obj.method |params| body |
+                            self.parser.advance(); // consume |
+                            let lambda = self.parse_lambda()?;
+                            Expr::Call {
+                                id: nevermind_ast::new_node_id(),
+                                callee: Box::new(member_expr),
+                                args: vec![lambda],
+                                span: self.parser.span_from(start),
+                            }
+                        } else if matches!(self.parser.peek_token_type(), TokenType::Identifier | TokenType::Literal(_))
+                            && !self.parser.check_keyword(Keyword::End)
+                            && !self.parser.check_keyword(Keyword::Do)
+                            && !self.parser.check_keyword(Keyword::Then)
+                            && !self.parser.check_keyword(Keyword::Else)
+                        {
+                            // Command-style method call: obj.method arg
+                            let arg = self.parse_expression_bp(right_bp)?;
+                            Expr::Call {
+                                id: nevermind_ast::new_node_id(),
+                                callee: Box::new(member_expr),
+                                args: vec![arg],
+                                span: self.parser.span_from(start),
+                            }
+                        } else {
+                            member_expr
+                        }
                     }
 
                     _ => {
@@ -428,14 +524,11 @@ impl<'a> ExprParser<'a> {
 
         self.parser.consume_operator(Operator::BitOr, "expected '|' to end lambda parameters")?;
 
-        // Parse body (expression or block)
-        let body = if self.parser.check_operator(Operator::BitOr) {
-            // Block body
-            self.parse_block()?
-        } else {
-            // Expression body
-            self.parse_expression_bp(0)?
-        };
+        // Parse body expression
+        let body = self.parse_expression_bp(0)?;
+
+        // Optionally consume trailing '|' (used in pipeline lambda syntax: |x| body |)
+        self.parser.match_operator(Operator::BitOr);
 
         Ok(Expr::Lambda {
             id: nevermind_ast::new_node_id(),
@@ -547,6 +640,7 @@ impl<'a> ExprParser<'a> {
                     Operator::Pow => (15, 14),  // Right-associative
                     Operator::Concat => (11, 11),
                     Operator::Pipe => (6, 7),
+                    Operator::Dot => (22, 21),
                     _ => return None,
                 };
                 Some(bp)
@@ -560,11 +654,6 @@ impl<'a> ExprParser<'a> {
             TokenType::Delimiter(Delimiter::LBracket) => {
                 // Indexing has high precedence
                 Some((21, 20))
-            }
-
-            TokenType::Operator(Operator::Dot) => {
-                // Member access has highest precedence
-                Some((22, 21))
             }
 
             _ => None,

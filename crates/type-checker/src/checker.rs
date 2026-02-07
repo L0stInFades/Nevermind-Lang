@@ -511,6 +511,19 @@ impl TypeChecker {
                 // TODO: Check that array is a list type and return element type
                 Ok(array_ty)
             }
+
+            Expr::Assign { target, value, .. } => {
+                let _target_ty = self.infer_expression(target)?;
+                let value_ty = self.infer_expression(value)?;
+                Ok(value_ty)
+            }
+
+            Expr::MemberAccess { object, .. } => {
+                let _obj_ty = self.infer_expression(object)?;
+                // Return a fresh type variable since we don't know the member type
+                let var = self.ctx.fresh_var();
+                Ok(Type::Var(crate::types::TypeVarRef::new(var.id())))
+            }
         }
     }
 
@@ -602,6 +615,16 @@ impl TypeChecker {
                 self.check_pattern(end, &Type::Int)?;
                 Ok(())
             }
+
+            Pattern::Constructor { args, .. } => {
+                // Type check constructor arguments
+                for arg in args {
+                    let var = self.ctx.fresh_var();
+                    let arg_ty = Type::Var(crate::types::TypeVarRef::new(var.id()));
+                    self.check_pattern(arg, &arg_ty)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -634,6 +657,8 @@ mod ast_helpers {
             Expr::Map { span, .. } => span.clone(),
             Expr::Match { span, .. } => span.clone(),
             Expr::Index { span, .. } => span.clone(),
+            Expr::Assign { span, .. } => span.clone(),
+            Expr::MemberAccess { span, .. } => span.clone(),
         }
     }
 
@@ -648,6 +673,7 @@ mod ast_helpers {
             Pattern::Struct { span, .. } => span.clone(),
             Pattern::Or { span, .. } => span.clone(),
             Pattern::Range { span, .. } => span.clone(),
+            Pattern::Constructor { span, .. } => span.clone(),
         }
     }
 

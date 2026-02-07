@@ -2,7 +2,7 @@
 
 use nevermind_common::Span;
 
-use nevermind_lexer::{Token, TokenType};
+use nevermind_lexer::TokenType;
 use nevermind_lexer::token::{Keyword, Delimiter, LiteralType};
 
 use nevermind_ast::{Pattern, Literal};
@@ -31,7 +31,7 @@ impl<'a> PatternParser<'a> {
     fn parse_pattern_bp(&mut self, _min_bp: u8) -> ParseResult<Pattern> {
         let start = self.parser.peek_span();
 
-        // Check for wildcard (_)
+        // Check for identifier-based patterns (wildcard, variable, constructor)
         if let TokenType::Identifier = self.parser.peek_token_type() {
             let token = self.parser.advance().unwrap();
             if token.text == "_" {
@@ -39,10 +39,40 @@ impl<'a> PatternParser<'a> {
                     span: self.parser.span_from(start),
                 });
             }
+
+            // Check if this is a constructor pattern: Name(args...)
+            if self.parser.match_delimiter(Delimiter::LParen) {
+                let mut args = Vec::new();
+                while !self.parser.check_delimiter(Delimiter::RParen) && !self.parser.is_at_end() {
+                    args.push(self.parse_pattern()?);
+                    if !self.parser.match_delimiter(Delimiter::Comma) {
+                        break;
+                    }
+                }
+                self.parser.consume_delimiter(Delimiter::RParen, "expected ')' to close constructor pattern")?;
+                return Ok(Pattern::Constructor {
+                    name: token.text,
+                    args,
+                    span: self.parser.span_from(start),
+                });
+            }
+
+            // Otherwise it's a variable pattern
+            return Ok(Pattern::Variable {
+                name: token.text,
+                span: self.parser.span_from(start),
+            });
+        }
+
+        // Check for keyword literal patterns (true, false, null)
+        if matches!(self.parser.peek_token_type(),
+            TokenType::Keyword(Keyword::True) | TokenType::Keyword(Keyword::False) | TokenType::Keyword(Keyword::Null))
+        {
+            return self.parse_literal_pattern(start);
         }
 
         // Check for literal pattern
-        if let TokenType::Literal(lit_type) = self.parser.peek_token_type() {
+        if matches!(self.parser.peek_token_type(), TokenType::Literal(_)) {
             return self.parse_literal_pattern(start);
         }
 
@@ -61,18 +91,10 @@ impl<'a> PatternParser<'a> {
             return self.parse_struct_pattern(start);
         }
 
-        // Check for range pattern
-        if let TokenType::Operator(op) = self.parser.peek_token_type() {
-            // This would need to check for .. operator
-            // For now, skip
-        }
-
-        // Default: variable pattern
-        let name = self.parser.consume_identifier("expected pattern")?;
-        Ok(Pattern::Variable {
-            name,
-            span: self.parser.span_from(start),
-        })
+        Err(ParseError::new(
+            format!("expected pattern, found {:?}", self.parser.peek_token_type()),
+            start,
+        ))
     }
 
     /// Parse a literal pattern

@@ -49,7 +49,7 @@ fn pipeline_stage_must_be_function() {
 
 #[test]
 fn pipeline_respects_generic_function_shape() {
-    let source = "fn identity(x) do x end end\nlet numbers = [1, 2, 3]\nlet piped = numbers |> identity\npiped";
+    let source = "fn identity(x) do x end\nlet numbers = [1, 2, 3]\nlet piped = numbers |> identity\npiped";
     let ty = type_check_program(source).expect("expected pipeline to type check");
     assert!(!matches!(ty, Type::Unit));
 }
