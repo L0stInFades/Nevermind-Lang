@@ -23,7 +23,7 @@ impl PythonGenerator {
     }
 
     fn indent(&self) -> String {
-        " ".repeat(self.indent_level * 4)
+        "    ".repeat(self.indent_level)
     }
 
     fn output_line(&self, output: &mut BytecodeChunk, text: &str) {
@@ -34,7 +34,14 @@ impl PythonGenerator {
         match literal {
             Literal::Int(v) => v.to_string(),
             Literal::Float(v) => v.to_string(),
-            Literal::String(v) => format!("\"{}\"", escape_string(v)),
+            Literal::String(v) => {
+                // Check for string interpolation: {expr}
+                if v.contains('{') && v.contains('}') {
+                    format!("f\"{}\"", escape_string(v))
+                } else {
+                    format!("\"{}\"", escape_string(v))
+                }
+            }
             Literal::Bool(v) => {
                 if *v { "True" } else { "False" }.to_string()
             }
@@ -67,6 +74,193 @@ impl PythonGenerator {
             UnaryOp::Not => "not ",
         }
     }
+
+    /// Emit a list of MirExprStmt with proper indentation
+    fn emit_expr_stmt_list(&mut self, stmts: &[MirExprStmt], output: &mut BytecodeChunk) -> Result<()> {
+        if stmts.is_empty() {
+            self.output_line(output, "pass");
+            return Ok(());
+        }
+        for stmt in stmts {
+            self.emit_expr_stmt(stmt, output)?;
+        }
+        Ok(())
+    }
+
+    /// Emit a single MirExprStmt
+    fn emit_expr_stmt(&mut self, stmt: &MirExprStmt, output: &mut BytecodeChunk) -> Result<()> {
+        match stmt {
+            MirExprStmt::Let { name, value, .. } => {
+                let expr_chunk = self.emit_expr(value)?;
+                self.output_line(output, &format!("{} = {}", name, expr_chunk.code.trim()));
+            }
+            MirExprStmt::Assign { target, value, .. } => {
+                let chunk = self.emit_expr(value)?;
+                self.output_line(output, &format!("{} = {}", target, chunk.code.trim()));
+            }
+            MirExprStmt::Expr(expr) => {
+                let chunk = self.emit_expr(expr)?;
+                let code = chunk.code.trim();
+                if !code.is_empty() {
+                    self.output_line(output, code);
+                }
+            }
+            MirExprStmt::Return { value, .. } => {
+                if let Some(v) = value {
+                    let chunk = self.emit_expr(v)?;
+                    self.output_line(output, &format!("return {}", chunk.code.trim()));
+                } else {
+                    self.output_line(output, "return");
+                }
+            }
+            MirExprStmt::If { condition, then_body, else_body, .. } => {
+                let cond_chunk = self.emit_expr(condition)?;
+                self.output_line(output, &format!("if {}:", cond_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_expr_stmt_list(then_body, output)?;
+                self.indent_level -= 1;
+                if let Some(else_stmts) = else_body {
+                    self.output_line(output, "else:");
+                    self.indent_level += 1;
+                    self.emit_expr_stmt_list(else_stmts, output)?;
+                    self.indent_level -= 1;
+                }
+            }
+            MirExprStmt::While { condition, body, .. } => {
+                let cond_chunk = self.emit_expr(condition)?;
+                self.output_line(output, &format!("while {}:", cond_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_expr_stmt_list(body, output)?;
+                self.indent_level -= 1;
+            }
+            MirExprStmt::For { variable, iter, body, .. } => {
+                let iter_chunk = self.emit_expr(iter)?;
+                self.output_line(output, &format!("for {} in {}:", variable, iter_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_expr_stmt_list(body, output)?;
+                self.indent_level -= 1;
+            }
+            MirExprStmt::Break { .. } => {
+                self.output_line(output, "break");
+            }
+            MirExprStmt::Continue { .. } => {
+                self.output_line(output, "continue");
+            }
+        }
+        Ok(())
+    }
+
+    /// Emit a list of top-level MirStmt (used for if/while/for body in MirStmt)
+    fn emit_mir_stmt_list(&mut self, stmts: &[MirStmt], output: &mut BytecodeChunk) -> Result<()> {
+        if stmts.is_empty() {
+            self.output_line(output, "pass");
+            return Ok(());
+        }
+        for stmt in stmts {
+            self.emit_mir_stmt(stmt, output)?;
+        }
+        Ok(())
+    }
+
+    /// Emit a single top-level MirStmt
+    fn emit_mir_stmt(&mut self, stmt: &MirStmt, output: &mut BytecodeChunk) -> Result<()> {
+        match stmt {
+            MirStmt::Function { name, params, body, .. } => {
+                let params_str: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
+                let params_str = params_str.join(", ");
+                self.output_line(output, &format!("def {}({}):", name, params_str));
+
+                self.indent_level += 1;
+
+                // Emit statements
+                for stmt in &body.statements {
+                    self.emit_expr_stmt(stmt, output)?;
+                }
+
+                // Return expression
+                if let Some(expr) = &body.expr {
+                    let chunk = self.emit_expr(expr)?;
+                    self.output_line(output, &format!("return {}", chunk.code.trim()));
+                } else if body.statements.is_empty() {
+                    self.output_line(output, "pass");
+                }
+
+                self.indent_level -= 1;
+                output.add_line("");
+            }
+            MirStmt::Let { name, value, .. } => {
+                let expr_chunk = self.emit_expr(value)?;
+                self.output_line(output, &format!("{} = {}", name, expr_chunk.code.trim()));
+            }
+            MirStmt::Expr(expr) => {
+                let chunk = self.emit_expr(expr)?;
+                let code = chunk.code.trim();
+                if !code.is_empty() {
+                    self.output_line(output, code);
+                }
+            }
+            MirStmt::If { condition, then_body, else_body, .. } => {
+                let cond_chunk = self.emit_expr(condition)?;
+                self.output_line(output, &format!("if {}:", cond_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_mir_stmt_list(then_body, output)?;
+                self.indent_level -= 1;
+                if let Some(else_stmts) = else_body {
+                    self.output_line(output, "else:");
+                    self.indent_level += 1;
+                    self.emit_mir_stmt_list(else_stmts, output)?;
+                    self.indent_level -= 1;
+                }
+            }
+            MirStmt::While { condition, body, .. } => {
+                let cond_chunk = self.emit_expr(condition)?;
+                self.output_line(output, &format!("while {}:", cond_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_mir_stmt_list(body, output)?;
+                self.indent_level -= 1;
+            }
+            MirStmt::For { variable, iter, body, .. } => {
+                let iter_chunk = self.emit_expr(iter)?;
+                self.output_line(output, &format!("for {} in {}:", variable, iter_chunk.code.trim()));
+                self.indent_level += 1;
+                self.emit_mir_stmt_list(body, output)?;
+                self.indent_level -= 1;
+            }
+            MirStmt::Return { value, .. } => {
+                if let Some(v) = value {
+                    let chunk = self.emit_expr(v)?;
+                    self.output_line(output, &format!("return {}", chunk.code.trim()));
+                } else {
+                    self.output_line(output, "return");
+                }
+            }
+            MirStmt::Break { .. } => {
+                self.output_line(output, "break");
+            }
+            MirStmt::Continue { .. } => {
+                self.output_line(output, "continue");
+            }
+            MirStmt::Match { scrutinee, arms, .. } => {
+                let scrut_chunk = self.emit_expr(scrutinee)?;
+                self.output_line(output, &format!("match {}:", scrut_chunk.code.trim()));
+                self.indent_level += 1;
+                for arm in arms {
+                    let pattern_str = format_mir_pattern(&arm.pattern);
+                    if let Some(guard) = &arm.guard {
+                        let guard_chunk = self.emit_expr(guard)?;
+                        self.output_line(output, &format!("case {} if {}:", pattern_str, guard_chunk.code.trim()));
+                    } else {
+                        self.output_line(output, &format!("case {}:", pattern_str));
+                    }
+                    self.indent_level += 1;
+                    self.emit_mir_stmt_list(&arm.body, output)?;
+                    self.indent_level -= 1;
+                }
+                self.indent_level -= 1;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl CodeEmitter for PythonGenerator {
@@ -77,62 +271,17 @@ impl CodeEmitter for PythonGenerator {
         output.add_line("# Generated by Nevermind compiler");
 
         for stmt in &program.statements {
-            match stmt {
-                MirStmt::Function { name, params, body, .. } => {
-                    // Function definition
-                    let params_str: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
-                    let params_str = params_str.join(", ");
-                    output.add_line(&format!("def {}({}):", name, params_str));
+            self.emit_mir_stmt(stmt, &mut output)?;
+        }
 
-                    // Function body
-                    self.indent_level += 1;
-
-                    // Emit statements
-                    for stmt in &body.statements {
-                        match stmt {
-                            MirExprStmt::Let { name, value, .. } => {
-                                let expr_chunk = self.emit_expr(value)?;
-                                self.output_line(&mut output, &format!("{} = {}", name, expr_chunk.code.trim()));
-                            }
-                            MirExprStmt::Expr(expr) => {
-                                let chunk = self.emit_expr(expr)?;
-                                self.output_line(&mut output, chunk.code.trim());
-                            }
-                            MirExprStmt::Assign { target, value, .. } => {
-                                let chunk = self.emit_expr(value)?;
-                                self.output_line(&mut output, &format!("{} = {}", target, chunk.code.trim()));
-                            }
-                            MirExprStmt::Return { value, .. } => {
-                                if let Some(v) = value {
-                                    let chunk = self.emit_expr(v)?;
-                                    self.output_line(&mut output, &format!("return {}", chunk.code.trim()));
-                                } else {
-                                    self.output_line(&mut output, "return");
-                                }
-                            }
-                        }
-                    }
-
-                    // Return expression
-                    if let Some(expr) = &body.expr {
-                        let chunk = self.emit_expr(expr)?;
-                        self.output_line(&mut output, &format!("return {}", chunk.code.trim()));
-                    } else {
-                        self.output_line(&mut output, "return None");
-                    }
-
-                    self.indent_level -= 1;
-                    output.add_line("");
-                }
-                MirStmt::Let { name, value, .. } => {
-                    let expr_chunk = self.emit_expr(value)?;
-                    output.add_line(&format!("{} = {}", name, expr_chunk.code.trim()));
-                }
-                MirStmt::Expr(expr) => {
-                    let chunk = self.emit_expr(expr)?;
-                    output.add_line(chunk.code.trim());
-                }
-            }
+        // Auto-call main() if it exists
+        let has_main = program.statements.iter().any(|s| {
+            matches!(s, MirStmt::Function { name, .. } if name == "main")
+        });
+        if has_main {
+            output.add_line("");
+            output.add_line("if __name__ == \"__main__\":");
+            output.add_line("    main()");
         }
 
         Ok(output)
@@ -141,50 +290,24 @@ impl CodeEmitter for PythonGenerator {
     fn emit_function(&mut self, func: &MirFunction) -> Result<BytecodeChunk> {
         let mut output = BytecodeChunk::new();
 
-        // Function definition
         let params: Vec<String> = func.params.iter().map(|p| p.name.clone()).collect();
         let params_str = params.join(", ");
         output.add_line(&format!("def {}({}):", func.name, params_str));
 
-        // Function body
         self.indent_level += 1;
 
-        // Emit statements
         for stmt in &func.body.statements {
-            match stmt {
-                MirExprStmt::Let { name, value, .. } => {
-                    let expr_chunk = self.emit_expr(value)?;
-                    self.output_line(&mut output, &format!("{} = {}", name, expr_chunk.code.trim()));
-                }
-                MirExprStmt::Expr(expr) => {
-                    let chunk = self.emit_expr(expr)?;
-                    self.output_line(&mut output, chunk.code.trim());
-                }
-                MirExprStmt::Assign { target, value, .. } => {
-                    let chunk = self.emit_expr(value)?;
-                    self.output_line(&mut output, &format!("{} = {}", target, chunk.code.trim()));
-                }
-                MirExprStmt::Return { value, .. } => {
-                    if let Some(v) = value {
-                        let chunk = self.emit_expr(v)?;
-                        self.output_line(&mut output, &format!("return {}", chunk.code.trim()));
-                    } else {
-                        self.output_line(&mut output, "return");
-                    }
-                }
-            }
+            self.emit_expr_stmt(stmt, &mut output)?;
         }
 
-        // Return expression
         if let Some(expr) = &func.body.expr {
             let chunk = self.emit_expr(expr)?;
             self.output_line(&mut output, &format!("return {}", chunk.code.trim()));
-        } else {
-            self.output_line(&mut output, "return None");
+        } else if func.body.statements.is_empty() {
+            self.output_line(&mut output, "pass");
         }
 
         self.indent_level -= 1;
-
         output.add_line("");
 
         Ok(output)
@@ -234,21 +357,23 @@ impl CodeEmitter for PythonGenerator {
             }
 
             MirExpr::Block { statements, expr, .. } => {
-                // Emit statements
                 for stmt in statements {
                     match stmt {
                         MirExprStmt::Let { name, value, .. } => {
                             let value_chunk = self.emit_expr(value)?;
                             output.add_line(&format!("{} = {}", name, value_chunk.code.trim()));
                         }
-                        MirExprStmt::Expr(e) => {
-                            let chunk = self.emit_expr(e)?;
-                            output.code.push_str(chunk.code.trim());
-                            output.code.push_str("\n");
-                        }
                         MirExprStmt::Assign { target, value, .. } => {
                             let chunk = self.emit_expr(value)?;
                             output.add_line(&format!("{} = {}", target, chunk.code.trim()));
+                        }
+                        MirExprStmt::Expr(e) => {
+                            let chunk = self.emit_expr(e)?;
+                            let code = chunk.code.trim();
+                            if !code.is_empty() {
+                                output.code.push_str(code);
+                                output.code.push('\n');
+                            }
                         }
                         MirExprStmt::Return { value, .. } => {
                             if let Some(v) = value {
@@ -257,6 +382,39 @@ impl CodeEmitter for PythonGenerator {
                             } else {
                                 output.add_line("return");
                             }
+                        }
+                        MirExprStmt::If { condition, then_body, else_body, .. } => {
+                            let cond_chunk = self.emit_expr(condition)?;
+                            output.add_line(&format!("{}if {}:", self.indent(), cond_chunk.code.trim()));
+                            self.indent_level += 1;
+                            self.emit_expr_stmt_list(then_body, &mut output)?;
+                            self.indent_level -= 1;
+                            if let Some(else_stmts) = else_body {
+                                output.add_line(&format!("{}else:", self.indent()));
+                                self.indent_level += 1;
+                                self.emit_expr_stmt_list(else_stmts, &mut output)?;
+                                self.indent_level -= 1;
+                            }
+                        }
+                        MirExprStmt::While { condition, body, .. } => {
+                            let cond_chunk = self.emit_expr(condition)?;
+                            output.add_line(&format!("{}while {}:", self.indent(), cond_chunk.code.trim()));
+                            self.indent_level += 1;
+                            self.emit_expr_stmt_list(body, &mut output)?;
+                            self.indent_level -= 1;
+                        }
+                        MirExprStmt::For { variable, iter, body, .. } => {
+                            let iter_chunk = self.emit_expr(iter)?;
+                            output.add_line(&format!("{}for {} in {}:", self.indent(), variable, iter_chunk.code.trim()));
+                            self.indent_level += 1;
+                            self.emit_expr_stmt_list(body, &mut output)?;
+                            self.indent_level -= 1;
+                        }
+                        MirExprStmt::Break { .. } => {
+                            output.add_line(&format!("{}break", self.indent()));
+                        }
+                        MirExprStmt::Continue { .. } => {
+                            output.add_line(&format!("{}continue", self.indent()));
                         }
                     }
                 }
@@ -298,9 +456,42 @@ impl CodeEmitter for PythonGenerator {
                     index_chunk.code.trim()
                 ));
             }
+
+            MirExpr::Lambda { params, body, .. } => {
+                let body_chunk = self.emit_expr(body)?;
+                let params_str = params.join(", ");
+                output.add_line(&format!("lambda {}: {}", params_str, body_chunk.code.trim()));
+            }
         }
 
         Ok(output)
+    }
+}
+
+/// Format a MirPattern for Python match/case syntax
+fn format_mir_pattern(pattern: &nevermind_mir::MirPattern) -> String {
+    match pattern {
+        nevermind_mir::MirPattern::Wildcard { .. } => "_".to_string(),
+        nevermind_mir::MirPattern::Variable { name, .. } => name.clone(),
+        nevermind_mir::MirPattern::Literal { value, .. } => match value {
+            Literal::Int(v) => v.to_string(),
+            Literal::Float(v) => v.to_string(),
+            Literal::String(v) => format!("\"{}\"", v),
+            Literal::Bool(v) => if *v { "True" } else { "False" }.to_string(),
+            Literal::Null => "None".to_string(),
+        },
+        nevermind_mir::MirPattern::List { patterns, .. } => {
+            let parts: Vec<String> = patterns.iter().map(format_mir_pattern).collect();
+            format!("[{}]", parts.join(", "))
+        }
+        nevermind_mir::MirPattern::Constructor { name, args, .. } => {
+            if args.is_empty() {
+                name.clone()
+            } else {
+                let parts: Vec<String> = args.iter().map(format_mir_pattern).collect();
+                format!("{}({})", name, parts.join(", "))
+            }
+        }
     }
 }
 

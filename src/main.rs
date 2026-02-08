@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(name = "nevermind")]
 #[command(about = "The Nevermind Programming Language", long_about = None)]
-#[command(version = "0.1.0")]
+#[command(version = "0.4.0")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -186,11 +186,39 @@ fn run(input: PathBuf, args: Vec<String>) -> Result<(), Box<dyn std::error::Erro
     // Run with Python
     println!("\nExecuting with Python...");
 
-    let mut cmd = std::process::Command::new("python");
-    cmd.arg(&py_output);
-    cmd.args(&args);
+    // Try python interpreters in order: python3, python, py (Windows launcher)
+    let python_cmds = if cfg!(windows) {
+        vec!["python", "python3", "py"]
+    } else {
+        vec!["python3", "python"]
+    };
 
-    let status = cmd.spawn()?.wait()?;
+    let mut last_err = None;
+    let mut status = None;
+    for python_cmd in &python_cmds {
+        let result = std::process::Command::new(python_cmd)
+            .arg(&py_output)
+            .args(&args)
+            .spawn();
+        match result {
+            Ok(mut child) => {
+                status = Some(child.wait()?);
+                last_err = None;
+                break;
+            }
+            Err(e) => {
+                last_err = Some(e);
+                continue;
+            }
+        }
+    }
+
+    if let Some(e) = last_err {
+        return Err(format!("Could not find Python interpreter. Tried: {}. Error: {}",
+            python_cmds.join(", "), e).into());
+    }
+
+    let status = status.unwrap();
 
     if !status.success() {
         return Err(format!("Python execution failed with status: {}", status).into());

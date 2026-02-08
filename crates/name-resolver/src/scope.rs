@@ -41,6 +41,12 @@ impl Scope {
     pub fn insert(&mut self, name: String, symbol: Symbol) -> Result<(), NameError> {
         if self.symbols.contains_key(&name) {
             let existing = &self.symbols[&name];
+            // Allow user definitions to shadow built-in functions (which are functions with dummy spans)
+            let is_builtin = existing.is_function() && existing.span == nevermind_common::Span::dummy();
+            if is_builtin {
+                self.symbols.insert(name, symbol);
+                return Ok(());
+            }
             return Err(NameError::new(
                 NameErrorKind::DuplicateDefinition(name.clone()),
                 format!("Cannot declare '{}', already defined in this scope", name),
@@ -144,7 +150,9 @@ mod tests {
     #[test]
     fn test_scope_duplicate_definition() {
         let mut scope = Scope::global();
-        let span = nevermind_common::Span::dummy();
+        // Use non-dummy spans so the duplicate check isn't bypassed by the built-in shadowing rule
+        let loc = nevermind_common::SourceLocation { file: None, line: 1, column: 1, offset: 0 };
+        let span = nevermind_common::Span { start: loc.clone(), end: nevermind_common::SourceLocation { file: None, line: 1, column: 5, offset: 4 } };
 
         let symbol1 = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
         let symbol2 = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span);

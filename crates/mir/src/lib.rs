@@ -15,7 +15,7 @@ mod pattern;
 pub mod lowering;
 
 pub use expr::{MirExpr, BinOp, UnaryOp, Literal, MirBlock, MirExprStmt};
-pub use stmt::{MirStmt, Param};
+pub use stmt::{MirStmt, Param, MirMatchArm};
 pub use function::{MirFunction, MirProgram};
 pub use pattern::{MirPattern};
 
@@ -35,4 +35,3 @@ pub fn lower_program(
 
     Ok(program)
 }
-

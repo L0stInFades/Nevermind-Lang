@@ -73,14 +73,35 @@ impl TypeChecker {
                 Ok(Type::Unit)
             }
 
-            Stmt::Function { name, params, body, span, .. } => {
-                // Create function type
+            Stmt::Function { name, params, body, return_type: ret_ann, span: _, .. } => {
+                // Resolve parameter types from annotations or create fresh variables
                 let param_types: Vec<Type> = params.iter()
-                    .map(|_| {
-                        let var = self.ctx.fresh_var();
-                        Type::Var(crate::types::TypeVarRef::new(var.id()))
+                    .map(|p| {
+                        if let Some(ann) = &p.type_annotation {
+                            self.resolve_type_annotation(ann)
+                        } else {
+                            let var = self.ctx.fresh_var();
+                            Type::Var(crate::types::TypeVarRef::new(var.id()))
+                        }
                     })
                     .collect();
+
+                // Resolve return type from annotation or create fresh variable
+                let declared_return = if let Some(ann) = ret_ann {
+                    self.resolve_type_annotation(ann)
+                } else {
+                    let var = self.ctx.fresh_var();
+                    Type::Var(crate::types::TypeVarRef::new(var.id()))
+                };
+
+                // Pre-declare function with its type (enables recursion)
+                // Use insert_or_update to allow shadowing of built-in functions
+                let func_type = Type::Function(
+                    param_types.clone(),
+                    Box::new(declared_return.clone()),
+                );
+                let func_scheme = TypeScheme::monomorphic(func_type.clone());
+                self.env.insert_or_update(name.clone(), func_scheme);
 
                 // Enter a new scope for the function body
                 self.env.enter_scope();
@@ -92,18 +113,15 @@ impl TypeChecker {
                 }
 
                 // Type check the body
-                let return_type = self.infer_expression(body)?;
+                let _return_type = self.infer_expression(body)?;
 
                 // Exit the function scope
                 self.env.exit_scope()?;
 
-                // Create the function type
-                let func_type = Type::Function(param_types, Box::new(return_type));
-
-                // Generalize and add to environment
+                // Generalize and add to environment (overwrite preliminary)
                 let free_vars = self.env.free_vars();
                 let scheme = TypeScheme::generalize(func_type, &free_vars);
-                self.env.insert(name.clone(), scheme)?;
+                self.env.insert_or_update(name.clone(), scheme);
 
                 Ok(Type::Unit)
             }
@@ -616,7 +634,7 @@ impl TypeChecker {
                 Ok(())
             }
 
-            Pattern::Constructor { args, .. } => {
+            Pattern::Constructor { name: _, args, .. } => {
                 // Type check constructor arguments
                 for arg in args {
                     let var = self.ctx.fresh_var();
@@ -624,6 +642,51 @@ impl TypeChecker {
                     self.check_pattern(arg, &arg_ty)?;
                 }
                 Ok(())
+            }
+        }
+    }
+
+    /// Resolve an AST type annotation to a type-checker type
+    fn resolve_type_annotation(&mut self, ann: &nevermind_ast::TypeAnnotation) -> Type {
+        use nevermind_ast::types::{Type as AstType, PrimitiveType as AstPrim};
+        match &ann.kind {
+            AstType::Primitive(prim) => match prim {
+                AstPrim::Int | AstPrim::Int32 | AstPrim::Int64 => Type::Int,
+                AstPrim::UInt | AstPrim::UInt32 | AstPrim::UInt64 => Type::Int,
+                AstPrim::Float | AstPrim::Float32 | AstPrim::Float64 => Type::Float,
+                AstPrim::Bool => Type::Bool,
+                AstPrim::String => Type::String,
+                AstPrim::Char => Type::String,
+                AstPrim::Unit => Type::Unit,
+                AstPrim::Null => Type::Null,
+            },
+            AstType::Identifier(name) => {
+                match name.as_str() {
+                    "Int" => Type::Int,
+                    "Float" => Type::Float,
+                    "Bool" => Type::Bool,
+                    "String" => Type::String,
+                    "Unit" | "Void" => Type::Unit,
+                    _ => Type::User(name.clone()),
+                }
+            }
+            AstType::List(elem) => {
+                let elem_ty = self.resolve_type_annotation(elem);
+                Type::List(Box::new(elem_ty))
+            }
+            AstType::Tuple(elems) => {
+                let elem_tys: Vec<Type> = elems.iter().map(|e| self.resolve_type_annotation(e)).collect();
+                Type::Tuple(elem_tys)
+            }
+            AstType::Function { params, return_type } => {
+                let param_tys: Vec<Type> = params.iter().map(|p| self.resolve_type_annotation(p)).collect();
+                let ret_ty = self.resolve_type_annotation(return_type);
+                Type::Function(param_tys, Box::new(ret_ty))
+            }
+            _ => {
+                // For unsupported types, use a fresh type variable
+                let var = self.ctx.fresh_var();
+                Type::Var(crate::types::TypeVarRef::new(var.id()))
             }
         }
     }

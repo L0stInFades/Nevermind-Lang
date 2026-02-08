@@ -5,6 +5,36 @@ All notable changes to the Nevermind programming language will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-08
+
+### Added
+- **Complete MIR/Codegen pipeline for runtime support** - End-to-end compilation now works for all examples
+- **MIR statement control flow types** - `If`, `While`, `For`, `Return`, `Break`, `Continue`, `Match` variants in `MirStmt`
+- **MIR match arm and pattern types** - `MirMatchArm`, `MirPattern::Constructor` for pattern matching
+- **Python codegen for all statement types** - If/elif/else, while, for, return, break, continue, match/case
+- **Function body lowering** - Smart detection of `print` calls to avoid spurious `return print(...)` wrapping
+- **Auto `main()` entry point** - Generated Python includes `if __name__ == "__main__": main()` when `main` function exists
+- **17 end-to-end compilation tests** in `tests/compile_tests.rs`
+- **Cross-platform Python discovery** - `nevermind run` tries `python`, `python3`, and `py` (Windows launcher)
+
+### Changed
+- Bumped version to 0.4.0
+- Example files updated to use single `end` (removed double `end` from parser grammar change)
+- `MirStmt` enum expanded from 3 to 10 variants
+- `MirExprStmt` expanded with `If`, `While`, `For`, `Break`, `Continue` for nested control flow
+
+### Fixed
+- Example files (`hello.nm`, `functions.nm`, `variables.nm`, `lists.nm`, `patterns.nm`, `simple_fn.nm`) fixed for current parser grammar
+- `nevermind run` now works on Windows by trying `py` launcher
+- Name resolver duplicate definition test fixed for built-in shadowing
+
+### Verified
+- `nevermind run examples/hello.nm` produces "Hello, World!"
+- `nevermind run examples/functions.nm` produces correct factorial(5)=120, fibonacci(10)=55
+- `nevermind run examples/math.nm` produces 30
+- `nevermind run examples/variables.nm` produces correct output
+- 296 tests passing across all workspace crates
+
 ## [0.3.1] - 2026-01-13
 
 ### Added
@@ -123,10 +153,15 @@ This release marked the completion of the entire compiler frontend pipeline. Nev
 
 ## Roadmap
 
-### Upcoming (0.4.0)
+### 0.4.0 - "Runtime Pipeline" Release (CURRENT)
+- [x] Complete MIR/Codegen pipeline for all control flow
+- [x] End-to-end compilation and execution
+- [x] Built-in functions (print, len, input, range, str, int)
+- [x] 296 tests passing
+
+### Upcoming (0.5.0)
 - [ ] REPL implementation
-- [ ] Standard library functions (print, read, etc.)
-- [ ] Loop execution support
+- [ ] Standard library expansion
 - [ ] Improved error recovery
 
 ### Future (1.0.0)

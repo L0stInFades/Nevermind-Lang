@@ -31,10 +31,61 @@ impl TypeEnvironment {
 
     /// Create a new environment with predefined bindings
     pub fn with_predefined() -> Self {
+        use crate::ty::TypeVar;
+
         let mut env = Self::new();
 
-        // Add basic types
-        // TODO: Add predefined functions and types
+        // Add built-in functions
+        // print: forall a. (a) -> Unit
+        let print_var = TypeVar::new(9000);
+        let print_type = Type::Function(
+            vec![Type::Var(crate::types::TypeVarRef::new(print_var.id()))],
+            Box::new(Type::Unit),
+        );
+        let _ = env.insert("print".to_string(), TypeScheme::new(vec![print_var.clone()], print_type));
+
+        // println: forall a. (a) -> Unit
+        let println_var = TypeVar::new(9001);
+        let println_type = Type::Function(
+            vec![Type::Var(crate::types::TypeVarRef::new(println_var.id()))],
+            Box::new(Type::Unit),
+        );
+        let _ = env.insert("println".to_string(), TypeScheme::new(vec![println_var.clone()], println_type));
+
+        // len: forall a. (a) -> Int
+        let len_var = TypeVar::new(9002);
+        let len_type = Type::Function(
+            vec![Type::Var(crate::types::TypeVarRef::new(len_var.id()))],
+            Box::new(Type::Int),
+        );
+        let _ = env.insert("len".to_string(), TypeScheme::new(vec![len_var.clone()], len_type));
+
+        // input: (String) -> String
+        let input_type = Type::Function(vec![Type::String], Box::new(Type::String));
+        let _ = env.insert("input".to_string(), TypeScheme::monomorphic(input_type));
+
+        // range: (Int, Int) -> List[Int]
+        let range_type = Type::Function(
+            vec![Type::Int, Type::Int],
+            Box::new(Type::List(Box::new(Type::Int))),
+        );
+        let _ = env.insert("range".to_string(), TypeScheme::monomorphic(range_type));
+
+        // str: forall a. (a) -> String
+        let str_var = TypeVar::new(9003);
+        let str_type = Type::Function(
+            vec![Type::Var(crate::types::TypeVarRef::new(str_var.id()))],
+            Box::new(Type::String),
+        );
+        let _ = env.insert("str".to_string(), TypeScheme::new(vec![str_var.clone()], str_type));
+
+        // int: forall a. (a) -> Int
+        let int_var = TypeVar::new(9004);
+        let int_type = Type::Function(
+            vec![Type::Var(crate::types::TypeVarRef::new(int_var.id()))],
+            Box::new(Type::Int),
+        );
+        let _ = env.insert("int".to_string(), TypeScheme::new(vec![int_var.clone()], int_type));
 
         env
     }
@@ -72,6 +123,12 @@ impl TypeEnvironment {
 
         current_scope.bindings.insert(name, scheme);
         Ok(())
+    }
+
+    /// Insert or update a binding in the current scope (allows overwriting)
+    pub fn insert_or_update(&mut self, name: String, scheme: TypeScheme) {
+        let current_scope = self.scopes.last_mut().unwrap();
+        current_scope.bindings.insert(name, scheme);
     }
 
     /// Look up a name in the environment

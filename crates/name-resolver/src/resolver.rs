@@ -23,10 +23,40 @@ pub struct NameResolver {
 impl NameResolver {
     /// Create a new name resolver
     pub fn new() -> Self {
-        Self {
+        let mut resolver = Self {
             symbol_table: SymbolTable::new(),
             errors: Vec::new(),
             visited_functions: HashSet::new(),
+        };
+        // Register built-in functions
+        resolver.register_builtins();
+        resolver
+    }
+
+    /// Register built-in functions in the global scope
+    fn register_builtins(&mut self) {
+        let builtins = [
+            ("print", 1),
+            ("println", 1),
+            ("len", 1),
+            ("str", 1),
+            ("int", 1),
+            ("float", 1),
+            ("bool", 1),
+            ("type", 1),
+            ("input", 1),
+            ("range", 2),
+            ("abs", 1),
+            ("min", 2),
+            ("max", 2),
+        ];
+        for (name, param_count) in builtins {
+            let symbol = Symbol::function(
+                name.to_string(),
+                param_count,
+                nevermind_common::Span::dummy(),
+            );
+            let _ = self.symbol_table.declare(name.to_string(), symbol);
         }
     }
 

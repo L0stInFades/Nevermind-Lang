@@ -1,7 +1,5 @@
-fn add(a, b)
-  do
-    a + b
-  end
+fn add(a, b) do
+  a + b
 end
 
 let result = add(5, 3)

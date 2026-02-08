@@ -1,21 +1,19 @@
 # Variables and Types
 
-fn main()
-  do
-    # Immutable by default
-    let name = "Alice"
-    let age = 30
+fn main() do
+  # Immutable by default
+  let name = "Alice"
+  let age = 30
 
-    # Mutable when explicitly specified
-    var score = 0
-    score = score + 1
+  # Mutable when explicitly specified
+  var score = 0
+  score = score + 1
 
-    # Type inference
-    let numbers = [1, 2, 3, 4, 5]
+  # Type inference
+  let numbers = [1, 2, 3, 4, 5]
 
-    print "Name: {name}"
-    print "Age: {age}"
-    print "Score: {score}"
-    print "Numbers: {numbers}"
-  end
+  print name
+  print age
+  print score
+  print numbers
 end

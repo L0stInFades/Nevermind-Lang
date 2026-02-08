@@ -76,6 +76,14 @@ pub enum MirExpr {
         ty: Type,
         id: NodeId,
     },
+
+    /// Lambda expression
+    Lambda {
+        params: Vec<String>,
+        body: Box<MirExpr>,
+        ty: Type,
+        id: NodeId,
+    },
 }
 
 impl MirExpr {
@@ -91,6 +99,7 @@ impl MirExpr {
             MirExpr::List { ty, .. } => ty,
             MirExpr::If { ty, .. } => ty,
             MirExpr::Index { ty, .. } => ty,
+            MirExpr::Lambda { ty, .. } => ty,
         }
     }
 
@@ -106,6 +115,7 @@ impl MirExpr {
             MirExpr::List { id, .. } => *id,
             MirExpr::If { id, .. } => *id,
             MirExpr::Index { id, .. } => *id,
+            MirExpr::Lambda { id, .. } => *id,
         }
     }
 
@@ -185,6 +195,39 @@ pub enum MirExprStmt {
         value: Option<Box<MirExpr>>,
         id: NodeId,
     },
+
+    /// If statement inside a block
+    If {
+        condition: MirExpr,
+        then_body: Vec<MirExprStmt>,
+        else_body: Option<Vec<MirExprStmt>>,
+        id: NodeId,
+    },
+
+    /// While loop inside a block
+    While {
+        condition: MirExpr,
+        body: Vec<MirExprStmt>,
+        id: NodeId,
+    },
+
+    /// For loop inside a block
+    For {
+        variable: String,
+        iter: MirExpr,
+        body: Vec<MirExprStmt>,
+        id: NodeId,
+    },
+
+    /// Break statement
+    Break {
+        id: NodeId,
+    },
+
+    /// Continue statement
+    Continue {
+        id: NodeId,
+    },
 }
 
 impl MirExprStmt {
@@ -194,6 +237,11 @@ impl MirExprStmt {
             MirExprStmt::Assign { id, .. } => *id,
             MirExprStmt::Expr(expr) => expr.get_id(),
             MirExprStmt::Return { id, .. } => *id,
+            MirExprStmt::If { id, .. } => *id,
+            MirExprStmt::While { id, .. } => *id,
+            MirExprStmt::For { id, .. } => *id,
+            MirExprStmt::Break { id } => *id,
+            MirExprStmt::Continue { id } => *id,
         }
     }
 }

@@ -1,8 +1,8 @@
 # Nevermind Implementation Status
 
-**Version**: 0.3.0
-**Last Updated**: 2025-01-13
-**Status**: 🧠 Turing-Complete!
+**Version**: 0.4.0
+**Last Updated**: 2026-02-08
+**Status**: End-to-End Compilation Pipeline Complete
 
 ## Executive Summary
 
@@ -53,7 +53,7 @@ Python Interpreter
 | **REPL** | Partial | - | - | 🚧 In Progress |
 | **Standard Lib** | Partial | - | - | 🚧 In Progress |
 
-**Total Test Count**: 259+ tests with 99% pass rate
+**Total Test Count**: 296 tests with 100% pass rate
 
 ---
 
@@ -81,16 +81,17 @@ Python Interpreter
 - [x] **String Interpolation** - Embedded expressions in strings
 - [x] **Indentation-Based** - Python-like significant indentation
 
-### 🚧 Partially Implemented
+### ✅ Now Fully Implemented (v0.4.0)
 
 #### Control Flow
-- [x] **Syntax parsed** for `while`, `for`, `loop`
-- [ ] **Execution support** needs completion
-- [ ] **Break/Continue** needs implementation
+- [x] **While loops** - Compiled to Python `while` loops
+- [x] **For loops** - Compiled to Python `for` loops
+- [x] **Break/Continue** - Full support in MIR and codegen
+- [x] **Return statements** - Explicit returns in functions
 
 #### I/O Operations
-- [x] **Syntax parsed** for `print` statements
-- [ ] **Actual I/O** needs runtime support
+- [x] **print function** - Built-in, compiles to Python `print()`
+- [x] **println function** - Built-in, compiles to Python `print()`
 
 ### 📋 Planned Features
 
@@ -167,15 +168,19 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
 | Parser | 100+ | 100% | `crates/parser/tests/` |
 | Name Resolver | 21 | 100% | `crates/name-resolver/tests/` |
 | Type Checker | 30 | 100% | `crates/type-checker/tests/` |
-| **Total** | **259+** | **99%+** | **Workspace** |
+| **Compile Tests** | 17 | 100% | `tests/compile_tests.rs` |
+| **Edge Cases** | 4 | 100% | `tests/edge_cases.rs` |
+| **Total** | **296** | **100%** | **Workspace** |
 
 ### Integration Tests
 
 | Example | Status | Output |
 |---------|--------|--------|
-| `examples/hello.nm` | ✅ Compiles | Python code |
-| `examples/math.nm` | ✅ Compiles | Correct arithmetic |
-| `examples/functions.nm` | ✅ Compiles | Function calls |
+| `examples/hello.nm` | ✅ Compiles & Runs | "Hello, World!" |
+| `examples/math.nm` | ✅ Compiles & Runs | 30 |
+| `examples/functions.nm` | ✅ Compiles & Runs | 8, 120, 55 |
+| `examples/simple_fn.nm` | ✅ Compiles & Runs | 8 |
+| `examples/variables.nm` | ✅ Compiles & Runs | Alice, 30, 1, [1,2,3,4,5] |
 | `examples/lists.nm` | ✅ Compiles | List literals |
 | `examples/brainfuck_simple.nm` | ✅ Compiles | BF interpreter |
 
@@ -214,15 +219,13 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
 
 ### Current Implementation Limits
 
-1. **Loop Execution**
-   - Syntax is parsed correctly
-   - Runtime execution not yet supported
-   - Need loop runtime implementation
+1. **Loop Execution** - ✅ RESOLVED in v0.4.0
+   - While, for loops compile to Python
+   - Break/continue supported
 
 2. **Standard Library**
-   - Only basic operations available
-   - No I/O functions (print, read, etc.)
-   - Need stdlib development
+   - Built-in functions: print, println, len, input, range, str, int
+   - More stdlib functions needed
 
 3. **Error Recovery**
    - Compiler stops at first error
@@ -361,6 +364,6 @@ Nevermind has achieved **Turing-completeness** and has a **complete compiler fro
 
 ---
 
-*Last updated: 2025-01-13*
-*Version: 0.3.0*
-*Status: 🧠 Turing-Complete!*
+*Last updated: 2026-02-08*
+*Version: 0.4.0*
+*Status: End-to-End Pipeline Complete*
