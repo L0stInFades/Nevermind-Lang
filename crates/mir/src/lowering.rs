@@ -539,8 +539,56 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::Match { scrutinee, arms: _, id: _, .. } => {
-            lower_expression(scrutinee)
+        Expr::Match { scrutinee, arms, id: _, .. } => {
+            // Lower match expression to nested if-else chain
+            let mir_scrutinee = lower_expression(scrutinee)?;
+
+            if arms.is_empty() {
+                return Ok(mir_scrutinee);
+            }
+
+            // Build the chain from last arm backwards
+            // Last arm should be a wildcard/variable (catch-all) or treated as else
+            let mut result: Option<MirExpr> = None;
+
+            for arm in arms.iter().rev() {
+                let body = lower_expression(&arm.body)?;
+
+                match &arm.pattern {
+                    Pattern::Wildcard { .. } | Pattern::Variable { .. } => {
+                        // Catch-all: this becomes the else branch
+                        result = Some(body);
+                    }
+                    Pattern::Literal { value, .. } => {
+                        let lit_expr = lower_literal(value)?;
+                        let condition = MirExpr::Binary {
+                            op: BinOp::Eq,
+                            left: Box::new(mir_scrutinee.clone()),
+                            right: Box::new(lit_expr),
+                            ty: Type::Bool,
+                            id: fresh_node_id(),
+                        };
+                        let else_branch = result.unwrap_or_else(|| MirExpr::Literal {
+                            value: Literal::Null,
+                            ty: Type::Unit,
+                            id: fresh_node_id(),
+                        });
+                        result = Some(MirExpr::If {
+                            condition: Box::new(condition),
+                            then_branch: Box::new(body),
+                            else_branch: Box::new(else_branch),
+                            ty: Type::Unit,
+                            id: fresh_node_id(),
+                        });
+                    }
+                    _ => {
+                        // For unsupported patterns, treat as catch-all
+                        result = Some(body);
+                    }
+                }
+            }
+
+            Ok(result.unwrap_or(mir_scrutinee))
         }
 
     }
@@ -680,9 +728,74 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
             })
         }
 
-        Stmt::Match { scrutinee, .. } => {
+        Stmt::Match { scrutinee, arms, .. } => {
             let mir_scrutinee = lower_expression(scrutinee)?;
-            Ok(MirExprStmt::Expr(mir_scrutinee))
+
+            if arms.is_empty() {
+                return Ok(MirExprStmt::Expr(mir_scrutinee));
+            }
+
+            // Lower match to nested if-else chain as expression statements
+            let mut result: Option<MirExprStmt> = None;
+
+            for arm in arms.iter().rev() {
+                let body_expr = lower_expression(&arm.body)?;
+                let body_stmt = vec![MirExprStmt::Expr(body_expr)];
+
+                match &arm.pattern {
+                    Pattern::Wildcard { .. } | Pattern::Variable { .. } => {
+                        // Catch-all becomes the else branch
+                        if result.is_none() {
+                            // Standalone: just the body
+                            result = Some(MirExprStmt::If {
+                                condition: MirExpr::Literal {
+                                    value: Literal::Bool(true),
+                                    ty: Type::Bool,
+                                    id: fresh_node_id(),
+                                },
+                                then_body: body_stmt,
+                                else_body: None,
+                                id: fresh_node_id(),
+                            });
+                        } else {
+                            // Wrap existing result as else, this as then with always-true
+                            let else_body = result.map(|r| vec![r]);
+                            result = Some(MirExprStmt::If {
+                                condition: MirExpr::Literal {
+                                    value: Literal::Bool(true),
+                                    ty: Type::Bool,
+                                    id: fresh_node_id(),
+                                },
+                                then_body: body_stmt,
+                                else_body,
+                                id: fresh_node_id(),
+                            });
+                        }
+                    }
+                    Pattern::Literal { value, .. } => {
+                        let lit_expr = lower_literal(value)?;
+                        let condition = MirExpr::Binary {
+                            op: BinOp::Eq,
+                            left: Box::new(mir_scrutinee.clone()),
+                            right: Box::new(lit_expr),
+                            ty: Type::Bool,
+                            id: fresh_node_id(),
+                        };
+                        let else_body = result.map(|r| vec![r]);
+                        result = Some(MirExprStmt::If {
+                            condition,
+                            then_body: body_stmt,
+                            else_body,
+                            id: fresh_node_id(),
+                        });
+                    }
+                    _ => {
+                        result = Some(MirExprStmt::Expr(lower_expression(&arm.body)?));
+                    }
+                }
+            }
+
+            Ok(result.unwrap_or(MirExprStmt::Expr(mir_scrutinee)))
         }
 
         _ => Err(LoweringError::UnsupportedNode(format!("{:?}", stmt))),

@@ -109,6 +109,13 @@ impl<'a> ExprParser<'a> {
                         TokenType::Literal(LiteralType::Float) if same_line => true,
                         TokenType::Identifier if same_line => true,
                         TokenType::Operator(Operator::BitOr) if same_line => true,
+                        // Keywords that start an expression value
+                        TokenType::Keyword(Keyword::True) if same_line => true,
+                        TokenType::Keyword(Keyword::False) if same_line => true,
+                        TokenType::Keyword(Keyword::Null) if same_line => true,
+                        TokenType::Operator(Operator::Not) if same_line => true,
+                        TokenType::Keyword(Keyword::If) if same_line => true,
+                        // Note: LBracket intentionally excluded - conflicts with indexing (arr[0])
                         _ => false,
                     }
                 } else {

@@ -447,11 +447,12 @@ fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>>
     .into())
 }
 
-/// Check if a word boundary exists around "do" at the given position in a string.
-fn has_do_keyword(s: &str) -> bool {
-    for (i, _) in s.match_indices("do") {
+/// Check if a word-boundary keyword exists in a string.
+fn has_keyword(s: &str, kw: &str) -> bool {
+    let kw_len = kw.len();
+    for (i, _) in s.match_indices(kw) {
         let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
-        let after = i + 2;
+        let after = i + kw_len;
         let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
         if before_ok && after_ok {
             return true;
@@ -460,17 +461,19 @@ fn has_do_keyword(s: &str) -> bool {
     false
 }
 
-/// Check if a word boundary exists around "end" at the given position in a string.
-fn has_end_keyword(s: &str) -> bool {
-    for (i, _) in s.match_indices("end") {
+/// Count occurrences of a word-boundary keyword in a string.
+fn count_keyword(s: &str, kw: &str) -> i32 {
+    let kw_len = kw.len();
+    let mut count = 0;
+    for (i, _) in s.match_indices(kw) {
         let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
-        let after = i + 3;
+        let after = i + kw_len;
         let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
         if before_ok && after_ok {
-            return true;
+            count += 1;
         }
     }
-    false
+    count
 }
 
 /// Check if the input buffer needs more lines (multi-line input).
@@ -479,17 +482,21 @@ fn needs_more_input(input: &str) -> bool {
 
     for line in input.lines() {
         let trimmed = line.trim();
-        // Count block openers (word-boundary "do")
-        if has_do_keyword(trimmed) {
+        // "do" and "then" each need a matching "end"
+        depth += count_keyword(trimmed, "do");
+        depth += count_keyword(trimmed, "then");
+        // "for" and "while" with "do" need an extra "end" beyond the do-block
+        if has_keyword(trimmed, "for") && has_keyword(trimmed, "do") {
+            depth += 1;
+        }
+        if has_keyword(trimmed, "while") && has_keyword(trimmed, "do") {
             depth += 1;
         }
         if trimmed.starts_with("match ") || trimmed == "match" {
             depth += 1;
         }
-        // Count block closers (word-boundary "end")
-        if has_end_keyword(trimmed) {
-            depth -= 1;
-        }
+        // Count block closers
+        depth -= count_keyword(trimmed, "end");
     }
 
     if depth > 0 {
@@ -498,7 +505,7 @@ fn needs_more_input(input: &str) -> bool {
 
     // Check for fn signature without body (no "do" on same line)
     let first_line = input.lines().next().unwrap_or("").trim();
-    if first_line.starts_with("fn ") && !has_do_keyword(first_line) && !has_end_keyword(first_line) {
+    if first_line.starts_with("fn ") && !has_keyword(first_line, "do") && !has_keyword(first_line, "end") {
         let line_count = input.lines().count();
         if line_count == 1 {
             return true;
