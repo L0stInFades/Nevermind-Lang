@@ -301,8 +301,13 @@ if is_valid or is_exception
 - [x] **End-to-end execution** (`nevermind run` compiles and runs)
 - [x] **Turing-Complete** (proved via Brainfuck interpreter)
 
+### ✅ Interactive REPL
+- [x] REPL with full compilation pipeline integration
+- [x] Persistent function/variable definitions across inputs
+- [x] Multi-line input support (`do...end`, `match...end` blocks)
+- [x] REPL commands (`:help`, `:clear`, `:defs`)
+
 ### 🚧 In Progress
-- [ ] REPL (Read-Eval-Print Loop) - Basic framework exists, needs pipeline integration
 - [ ] Standard library expansion (more math, string, collection functions)
 
 ### 📋 Planned
@@ -348,8 +353,28 @@ nevermind compile example.nm -o output.py
 # Run a Nevermind file (compiles and executes Python)
 nevermind run example.nm
 
-# Start the REPL
+# Start the interactive REPL
 nevermind repl
+```
+
+### REPL Session Example
+
+```
+>>> fn add(a, b) do a + b end
+>>> print add(3, 5)
+8
+>>> let x = 10
+>>> print x
+10
+>>> :defs
+fn add(a, b) do a + b end
+let x = 10
+>>> :help
+Commands:
+  :help   Show this help message
+  :clear  Clear all definitions
+  :defs   Show current definitions
+  exit    Exit the REPL
 ```
 
 ### Example Code

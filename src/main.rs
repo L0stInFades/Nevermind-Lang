@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::fs;
+use std::io::{self, BufRead, Write};
 
 use clap::{Parser, Subcommand};
 
@@ -229,47 +230,281 @@ fn run(input: PathBuf, args: Vec<String>) -> Result<(), Box<dyn std::error::Erro
 
 /// Start the REPL
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Nevermind REPL v0.1.0");
-    println!("Type 'exit' or Ctrl-D to exit\n");
+    println!("Nevermind REPL v0.4.0");
+    println!("Type :help for help, exit or Ctrl-D to quit\n");
 
-    let _input = String::new();
-    let _indent_level = 0;
+    let mut definitions: Vec<String> = Vec::new();
+    let mut input_buffer = String::new();
+
+    let stdin = io::stdin();
 
     loop {
         // Show prompt
-        let prompt = ">>> ";
-
+        let prompt = if input_buffer.is_empty() { ">>> " } else { "... " };
         print!("{}", prompt);
-        use std::io::Write;
-        std::io::stdout().flush()?;
+        io::stdout().flush()?;
 
         // Read line
-        use std::io::BufRead;
-        let stdin = std::io::stdin();
         let mut line = String::new();
-        stdin.lock().read_line(&mut line)?;
+        let bytes_read = stdin.lock().read_line(&mut line)?;
 
-        if line.is_empty() {
+        if bytes_read == 0 {
             // EOF
             println!("\nGoodbye!");
             break;
         }
 
-        let line = line.trim();
+        let trimmed = line.trim();
 
-        // Check for exit command
-        if line == "exit" || line == "quit" {
+        // Handle exit at top level
+        if input_buffer.is_empty() && (trimmed == "exit" || trimmed == "quit") {
             println!("Goodbye!");
             break;
         }
 
-        // For now, just echo the input
-        println!("  Input: {}", line);
+        // Handle REPL commands at top level
+        if input_buffer.is_empty() && trimmed.starts_with(':') {
+            match trimmed {
+                ":help" => {
+                    println!("Commands:");
+                    println!("  :help   Show this help message");
+                    println!("  :clear  Clear all definitions");
+                    println!("  :defs   Show current definitions");
+                    println!("  exit    Exit the REPL");
+                }
+                ":clear" => {
+                    definitions.clear();
+                    println!("Definitions cleared.");
+                }
+                ":defs" => {
+                    if definitions.is_empty() {
+                        println!("No definitions.");
+                    } else {
+                        for def in &definitions {
+                            println!("{}", def);
+                        }
+                    }
+                }
+                _ => {
+                    eprintln!("Unknown command: {}. Type :help for help.", trimmed);
+                }
+            }
+            continue;
+        }
 
-        // TODO: Actually evaluate the input
+        // Skip empty lines at top level
+        if input_buffer.is_empty() && trimmed.is_empty() {
+            continue;
+        }
+
+        // Append line to buffer
+        if !input_buffer.is_empty() {
+            input_buffer.push('\n');
+        }
+        input_buffer.push_str(&line.trim_end_matches('\n').trim_end_matches('\r'));
+
+        // Check if we need more input
+        if needs_more_input(&input_buffer) {
+            continue;
+        }
+
+        // Extract complete input and clear buffer
+        let complete_input = input_buffer.trim().to_string();
+        input_buffer.clear();
+
+        if complete_input.is_empty() {
+            continue;
+        }
+
+        // Classify: definition or expression
+        let is_def = complete_input.starts_with("fn ")
+            || complete_input.starts_with("let ")
+            || complete_input.starts_with("var ");
+
+        if is_def {
+            // Validate by compiling all defs + new def
+            let mut source = String::new();
+            for def in &definitions {
+                source.push_str(def);
+                source.push('\n');
+            }
+            source.push_str(&complete_input);
+            source.push('\n');
+            // Add a dummy main so codegen succeeds
+            source.push_str("fn main() do 0 end\n");
+
+            match compile_source_silent(&source) {
+                Ok(_) => {
+                    definitions.push(complete_input);
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            }
+        } else {
+            // Expression: compile all defs + expression, execute
+            let mut source = String::new();
+            for def in &definitions {
+                source.push_str(def);
+                source.push('\n');
+            }
+            source.push_str(&complete_input);
+            source.push('\n');
+
+            match compile_source_silent(&source) {
+                Ok(python_code) => {
+                    let code = strip_main_guard(&python_code);
+                    match execute_python_code(&code) {
+                        Ok(output) => {
+                            let output = output.trim_end();
+                            if !output.is_empty() {
+                                println!("{}", output);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Runtime error: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            }
+        }
     }
 
     Ok(())
+}
+
+/// Compile source code silently, returning the generated Python code.
+fn compile_source_silent(source: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Lex
+    let mut lexer = nevermind_lexer::Lexer::new(source);
+    let tokens = lexer.tokenize()?;
+
+    // Parse
+    let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+    let statements = parser.parse()?;
+
+    // Name resolution
+    let mut resolver = nevermind_name_resolver::NameResolver::new();
+    if let Err(errors) = resolver.resolve(&statements) {
+        let msgs: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
+        return Err(msgs.join("; ").into());
+    }
+
+    // Type checking
+    let mut checker = nevermind_type_checker::TypeChecker::new();
+    checker.check(&statements)?;
+
+    // Lower to MIR
+    let mir_program = nevermind_mir::lower_program(&statements)?;
+
+    // Code generation
+    let python_code = nevermind_codegen::generate(&mir_program)?;
+
+    Ok(python_code)
+}
+
+/// Execute Python code and return its stdout output.
+fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("nevermind_repl.py");
+    fs::write(&temp_file, code)?;
+
+    let python_cmds = if cfg!(windows) {
+        vec!["python", "python3", "py"]
+    } else {
+        vec!["python3", "python"]
+    };
+
+    let mut last_err = None;
+    for python_cmd in &python_cmds {
+        let result = std::process::Command::new(python_cmd)
+            .arg(&temp_file)
+            .output();
+        match result {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                if !output.status.success() {
+                    return Err(stderr.into());
+                }
+                return Ok(stdout);
+            }
+            Err(e) => {
+                last_err = Some(e);
+                continue;
+            }
+        }
+    }
+
+    Err(format!(
+        "Could not find Python interpreter. Tried: {}. Error: {}",
+        python_cmds.join(", "),
+        last_err.unwrap()
+    )
+    .into())
+}
+
+/// Check if the input buffer needs more lines (multi-line input).
+fn needs_more_input(input: &str) -> bool {
+    let mut depth: i32 = 0;
+
+    for line in input.lines() {
+        let trimmed = line.trim();
+        // Count block openers
+        if trimmed.contains(" do") || trimmed.starts_with("do") {
+            depth += 1;
+        }
+        if trimmed.starts_with("match ") || trimmed == "match" {
+            depth += 1;
+        }
+        // Count block closers
+        if trimmed == "end" || trimmed.ends_with(" end") {
+            depth -= 1;
+        }
+    }
+
+    if depth > 0 {
+        return true;
+    }
+
+    // Check for fn signature without body (no "do" on same line)
+    let first_line = input.lines().next().unwrap_or("").trim();
+    if first_line.starts_with("fn ") && !first_line.contains(" do") && !first_line.contains(" end") {
+        // Single-line fn without do/end needs more input
+        let line_count = input.lines().count();
+        if line_count == 1 {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Strip the `if __name__ == "__main__": main()` guard from generated Python.
+fn strip_main_guard(python: &str) -> String {
+    let mut lines: Vec<&str> = Vec::new();
+    let mut skip_next = false;
+
+    for line in python.lines() {
+        if skip_next {
+            // Skip indented line after __name__ guard (e.g., "    main()")
+            if line.starts_with(' ') || line.starts_with('\t') {
+                skip_next = false;
+                continue;
+            }
+            skip_next = false;
+        }
+        if line.contains("if __name__") && line.contains("__main__") {
+            skip_next = true;
+            continue;
+        }
+        lines.push(line);
+    }
+
+    lines.join("\n")
 }
 
 /// Check a file for errors

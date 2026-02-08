@@ -492,7 +492,7 @@ pub fn parse_range_pattern(&mut self) -> ParseResult<Pattern> {
 
 ### 短期
 
-- [ ] REPL 集成（接入完整编译管线）
+- [x] REPL 集成（接入完整编译管线）✅ 已完成
 - [ ] 扩展内建函数（math, string 操作）
 - [ ] 改进错误消息
 

@@ -50,7 +50,7 @@ Python Interpreter
 | **MIR Lowering** | Complete | - | - | ✅ Production Ready |
 | **Python CodeGen** | Complete | - | - | ✅ Production Ready |
 | **CLI Tools** | Complete | - | - | ✅ Production Ready |
-| **REPL** | Partial | - | - | 🚧 In Progress |
+| **REPL** | Complete | - | - | ✅ Production Ready |
 | **Standard Lib** | Partial | - | - | 🚧 In Progress |
 
 **Total Test Count**: 296 tests with 100% pass rate
@@ -268,12 +268,18 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
   - [x] Add print function and built-in functions
   - [x] Add basic I/O operations (print, input)
 
-- [ ] **0.5.0 - Standard Library & REPL**
-  - [ ] Interactive REPL (pipeline integration)
+- [x] **Interactive REPL** (COMPLETED in v0.4.0)
+  - [x] Full pipeline integration (lex → parse → resolve → typecheck → MIR → codegen)
+  - [x] Persistent definitions across inputs
+  - [x] Multi-line support (do/end, match/end blocks)
+  - [x] REPL commands (:help, :clear, :defs)
+
+- [ ] **0.5.0 - Standard Library & Enhancements**
   - [ ] Math functions (sin, cos, sqrt, etc.)
   - [ ] String operations
   - [ ] Collection operations (map, filter, reduce)
   - [ ] Improved error messages
+  - [ ] REPL enhancements (tab completion, history)
 
 - [ ] **0.6.0 - Module System**
   - [ ] Import/export
@@ -352,7 +358,6 @@ Nevermind has achieved **Turing-completeness** and has a **complete compiler fro
 - `nevermind run` compiles and executes in one step
 
 ### Next Steps
-- Implement interactive REPL (pipeline integration)
 - Expand standard library (math, string, collection functions)
 - Module system (import/export)
 - IDE support (VS Code extension, LSP)

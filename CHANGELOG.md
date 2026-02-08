@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-02-08
 
 ### Added
+- **Interactive REPL** - `nevermind repl` now runs the full compilation pipeline interactively
+  - Persistent definitions: `fn`, `let`, `var` declarations are remembered across inputs
+  - Expression evaluation: non-definition input is compiled, executed, and output is displayed
+  - Multi-line support: `do...end`, `match...end` blocks auto-detect continuation (`... ` prompt)
+  - REPL commands: `:help`, `:clear` (reset definitions), `:defs` (show stored definitions)
+  - Silent compilation via `compile_source_silent()` (lex → parse → resolve → typecheck → MIR → codegen)
+  - Temp-file Python execution with cross-platform interpreter discovery
+  - Auto-strips `if __name__ == "__main__"` guard from generated code
 - **Complete MIR/Codegen pipeline for runtime support** - End-to-end compilation now works for all examples
 - **MIR statement control flow types** - `If`, `While`, `For`, `Return`, `Break`, `Continue`, `Match` variants in `MirStmt`
 - **MIR match arm and pattern types** - `MirMatchArm`, `MirPattern::Constructor` for pattern matching
@@ -160,9 +168,9 @@ This release marked the completion of the entire compiler frontend pipeline. Nev
 - [x] 296 tests passing
 
 ### Upcoming (0.5.0)
-- [ ] REPL implementation
 - [ ] Standard library expansion
 - [ ] Improved error recovery
+- [ ] REPL enhancements (tab completion, command history, persistent Python session)
 
 ### Future (1.0.0)
 - [ ] IDE support (VS Code extension, LSP)
