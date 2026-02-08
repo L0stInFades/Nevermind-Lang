@@ -13,7 +13,6 @@ fn main()
   do
     print "Hello, World!"
   end
-end
 ```
 
 That's it! No semicolons, no curly braces, no `public static void`.
@@ -43,7 +42,6 @@ fn add(a: Int, b: Int) -> Int
   do
     a + b
   end
-end
 
 # Call it
 let result = add(5, 3)  # 8
@@ -64,7 +62,6 @@ else
   do
     print "Minor"
   end
-end
 ```
 
 **Reads like English**: "If age is greater than or equal to 18, then..."
@@ -144,9 +141,9 @@ fn divide(a: Int, b: Int) -> Result[Int, String]
   do
     if b == 0
       return Error("Division by zero")
+    end
     return Ok(a / b)
   end
-end
 
 # Use it
 match divide(10, 2)
@@ -168,7 +165,6 @@ fn fetch_data(url: String) -> String
     let response = http_get(url)  # Automatically awaited
     return response.body
   end
-end
 
 # Just call it normally
 let data = fetch_data("https://api.example.com")
@@ -241,14 +237,12 @@ fn process_data(filename: String) -> Int
 
     return result
   end
-end
 
 fn main()
   do
     let total = process_data("data.csv")
     print "Total score: {total}"
   end
-end
 ```
 
 ---
@@ -269,9 +263,9 @@ end
 
 ## Next Steps
 
-1. **Install** Nevermind (coming soon!)
+1. **Install** Nevermind: `cargo build --release`
 2. **Read** the [full documentation](README.md)
-3. **Try** the [example programs](examples/)
+3. **Try** the [example programs](examples/): `nevermind run examples/hello.nm`
 4. **Join** the community
 
 ---

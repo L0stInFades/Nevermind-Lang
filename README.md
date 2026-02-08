@@ -152,13 +152,12 @@ score = score + 1  # OK
 
 ```nevermind
 # Reads like English
-if score > 100 then "Excellent" else "Good"
+if score > 100 then "Excellent" else "Good" end
 
 for number in numbers
   do
     print number
   end
-end
 
 # List comprehensions
 let squares = [n * 2 for n in numbers if n > 2]
@@ -194,7 +193,6 @@ fn get_name({name: n, age: _}) -> String
   do
     n
   end
-end
 
 # In let bindings
 let [first, ...rest] = numbers
@@ -224,7 +222,6 @@ fn first<T>(items: List<T>) -> T
   do
     items[0]
   end
-end
 ```
 
 ### 7. Python Interoperability
@@ -261,7 +258,6 @@ else
   do
     print "Else"
   end
-end
 ```
 
 ### Natural Operators
@@ -272,55 +268,55 @@ if age >= 18 and age <= 65
   do
     print "Working age"
   end
-end
 
 # Logical operators: readable
 if is_valid or is_exception
   do
     process()
   end
-end
 ```
 
 ---
 
 ## Implementation Status
 
-**Current Version**: 0.3.0 (January 2025)
+**Current Version**: 0.4.0 (February 2026)
 
-### ✅ Completed - Compiler Frontend (Phase 1)
+### ✅ Completed - Full Compilation Pipeline
 - [x] Language specification
 - [x] **Lexer** (108 tests passing)
 - [x] **Parser** (100+ tests passing)
 - [x] **Name Resolver** (21 tests passing)
 - [x] **Type Checker** (30 tests passing - Hindley-Milner)
-- [x] **MIR (Mid-level IR)**
-- [x] **Python Code Generator**
+- [x] **MIR Lowering** (complete statement-level control flow)
+- [x] **Python Code Generator** (all statement types)
 - [x] **CLI Tools** (compile, check, run commands)
-- [x] **Array/List indexing** ✨ NEW
-- [x] **If expressions** ✨ NEW
-- [x] **Turing-Complete** ✨ PROVED
+- [x] **Array/List indexing**
+- [x] **If expressions**
+- [x] **While/For loops** (compiled to Python)
+- [x] **Break/Continue/Return** statements
+- [x] **Pattern matching** (match/case codegen)
+- [x] **Built-in functions** (print, len, range, input, str, int, etc.)
+- [x] **Recursive functions** (with type annotation support)
+- [x] **End-to-end execution** (`nevermind run` compiles and runs)
+- [x] **Turing-Complete** (proved via Brainfuck interpreter)
 
 ### 🚧 In Progress
-- [ ] REPL (Read-Eval-Print Loop) - Basic framework exists
-- [ ] Standard library (basic functions)
-- [ ] Error recovery and improved error messages
-- [ ] While/For loop execution support
+- [ ] REPL (Read-Eval-Print Loop) - Basic framework exists, needs pipeline integration
+- [ ] Standard library expansion (more math, string, collection functions)
 
-### 📋 Planned (Phase 2)
+### 📋 Planned
 - [ ] IDE support (VS Code, LSP)
+- [ ] Module system (import/export)
+- [ ] Error handling (Result/Option types)
+- [ ] Generics and traits
 - [ ] Package manager
-- [ ] Debugger
-- [ ] Comprehensive stdlib
-- [ ] Performance optimizations
 
-### 🎯 Future (Phase 3+)
-- [ ] Native compilation (LLVM)
-- [ ] Formal semantics proof
-- [ ] Advanced concurrency primitives
-- [ ] Macro system
+### 🎯 Future
+- [ ] Native compilation (LLVM backend)
 - [ ] WebAssembly backend
-- [ ] Mobile support (iOS/Android)
+- [ ] Macro system
+- [ ] Advanced concurrency primitives
 
 ---
 
@@ -352,7 +348,7 @@ nevermind compile example.nm -o output.py
 # Run a Nevermind file (compiles and executes Python)
 nevermind run example.nm
 
-# Start the REPL (coming soon)
+# Start the REPL
 nevermind repl
 ```
 
@@ -377,18 +373,19 @@ z
 
 ---
 
-## Development Status (January 2025)
+## Development Status (February 2026)
 
-### What's Working ✨
+### What's Working
 
-The Nevermind compiler now has a **complete frontend** that can:
+The Nevermind compiler has a **complete end-to-end pipeline** that can:
 
 1. **Lex** source code with proper indentation handling
 2. **Parse** into an Abstract Syntax Tree (AST)
-3. **Resolve names** with scope tracking
+3. **Resolve names** with scope tracking and built-in function registration
 4. **Type check** with full Hindley-Milner type inference
-5. **Lower to MIR** (Mid-level Intermediate Representation)
-6. **Generate Python code** that runs correctly
+5. **Lower to MIR** (Mid-level Intermediate Representation) with full control flow
+6. **Generate Python code** with all statement types (if/while/for/match/return/break/continue)
+7. **Execute** the generated Python code via `nevermind run`
 
 ### Test Coverage
 
@@ -398,38 +395,13 @@ The Nevermind compiler now has a **complete frontend** that can:
 | Parser | 100+ | ✅ All passing |
 | Name Resolver | 21 | ✅ All passing |
 | Type Checker | 30 | ✅ All passing |
-| **Total** | **259+** | ✅ **99% passing** |
+| Compile Tests | 17 | ✅ All passing |
+| Edge Cases | 4 | ✅ All passing |
+| **Total** | **296** | ✅ **100% passing** |
 
-### Recent Improvements (January 2025)
+### Turing Completeness
 
-#### Major New Features ✨
-- **Array/List Indexing**: Full support for array access with `array[index]` syntax
-- **If Expressions**: Complete conditional branching support
-- **Turing-Completeness Proof**: Nevermind proven to be Turing-complete via Brainfuck interpreter implementation
-
-#### Bug Fixes
-- Fixed lexer operator parsing to handle consecutive operators correctly (e.g., `+-*/`)
-- Fixed character escape sequence handling in lexer
-- Fixed EOF dedent handling to avoid spurious tokens
-- Added proper operator keyword detection (`and`, `or`, `not`)
-- Fixed critical MIR operator mapping bug (all operators were compiling as `+`)
-- Improved error reporting with detailed error messages
-
-#### Code Quality
-- Fixed all compilation warnings across crates
-- Improved test helper functions with better error messages
-- Enhanced CLI error output for easier debugging
-- Added comprehensive type checking for array indexing
-
-### Turing Completeness 🧠
-
-Nevermind is now **proven to be Turing-complete**! This means it can compute any computable function.
-
-**Proof**: We implemented a Brainfuck interpreter (examples/brainfuck_simple.nm), demonstrating all required capabilities:
-- ✅ Arbitrary memory access (arrays with indexing)
-- ✅ Conditional branching (if expressions)
-- ✅ Arithmetic operations (+, -, *, /)
-- ✅ Function composition
+Nevermind is **proven to be Turing-complete** via a Brainfuck interpreter implementation.
 
 See [examples/docs/TURING_COMPLETE.md](./examples/docs/TURING_COMPLETE.md) for the complete proof.
 
@@ -470,7 +442,6 @@ fn handle_request(req: Request) -> Response
       _ => Response.not_found()
     end
   end
-end
 
 let server = Server.create(port=8080)
 server.on_request(handle_request)
@@ -493,7 +464,6 @@ fn main()
 
     print processed
   end
-end
 ```
 
 ### Concurrency
@@ -508,7 +478,6 @@ fn process_files(files: List<String>) -> List<String>
       end
     end
   end
-end
 ```
 
 ---
@@ -545,7 +514,7 @@ A: Most languages prioritize either simplicity OR power. Nevermind achieves both
 
 **Q: Is Nevermind ready for production?**
 
-A: Not yet. We're in the design/specification phase. Join us to build it!
+A: Not yet. The compiler can compile and run programs end-to-end, but the standard library and tooling are still maturing.
 
 **Q: Will Nevermind replace Python?**
 
@@ -580,4 +549,4 @@ If you use Nevermind in research, please cite:
 
 ---
 
-*Version 1.0 - Design Specification Complete*
+*Version 0.4.0 - End-to-End Compilation Pipeline Complete*

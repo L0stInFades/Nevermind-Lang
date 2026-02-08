@@ -244,10 +244,10 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
    - Planned: LLVM, WASM backends
    - Rationale: Quick bootstrapping
 
-2. **No Runtime**
-   - Compilation only (no execution)
-   - Planned: Built-in runtime
-   - Rationale: Separation of concerns
+2. **Python Execution**
+   - `nevermind run` compiles then executes via Python interpreter
+   - Cross-platform: tries python, python3, py (Windows)
+   - Rationale: Quick bootstrapping before native runtime
 
 3. **Minimal Stdlib**
    - Only language features implemented
@@ -258,50 +258,45 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
 
 ## Development Roadmap
 
-### Phase 2: Runtime & Stdlib (Next 3 months)
+### Phase 2: Stdlib & Tooling
 
 **Goal**: Make Nevermind practically usable
 
-- [ ] **0.4.0 - Runtime Support**
-  - [ ] Execute generated Python code
-  - [ ] Implement while/for loop execution
-  - [ ] Add print function
-  - [ ] Add basic I/O operations
+- [x] **0.4.0 - Runtime Support** (COMPLETED)
+  - [x] Execute generated Python code
+  - [x] Implement while/for loop execution
+  - [x] Add print function and built-in functions
+  - [x] Add basic I/O operations (print, input)
 
-- [ ] **0.5.0 - Standard Library**
+- [ ] **0.5.0 - Standard Library & REPL**
+  - [ ] Interactive REPL (pipeline integration)
   - [ ] Math functions (sin, cos, sqrt, etc.)
   - [ ] String operations
   - [ ] Collection operations (map, filter, reduce)
-  - [ ] File I/O operations
-
-- [ ] **0.6.0 - REPL & Tooling**
-  - [ ] Interactive REPL
   - [ ] Improved error messages
-  - [ ] Source maps for debugging
-  - [ ] Code formatter
 
-### Phase 3: Ecosystem (6-12 months)
+- [ ] **0.6.0 - Module System**
+  - [ ] Import/export
+  - [ ] File I/O operations
+  - [ ] Package manager design
+
+### Phase 3: Ecosystem
 
 **Goal**: Production-ready language
 
-- [ ] **0.7.0 - Module System**
-  - [ ] Import/export
-  - [ ] Package manager
-  - [ ] Dependency resolution
-
-- [ ] **0.8.0 - IDE Support**
+- [ ] **0.7.0 - IDE Support**
   - [ ] VS Code extension
   - [ ] Language Server Protocol (LSP)
   - [ ] Syntax highlighting
   - [ ] Code completion
 
-- [ ] **0.9.0 - Advanced Features**
+- [ ] **0.8.0 - Advanced Features**
   - [ ] Generics and traits
   - [ ] Error handling (Result, Option)
   - [ ] Concurrency primitives
   - [ ] Macro system
 
-### Phase 4: Performance & Native (12+ months)
+### Phase 4: Performance & Native
 
 **Goal**: High-performance native compiler
 
@@ -347,20 +342,20 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 Nevermind has achieved **Turing-completeness** and has a **complete compiler frontend** that can successfully compile Nevermind programs to Python. The project is now ready to move from "proof of concept" to "practical language" by implementing runtime support, standard library, and developer tooling.
 
-### Key Achievements ✨
-- ✅ Complete compiler pipeline
-- ✅ Turing-completeness proven
-- ✅ 259+ tests with 99% pass rate
-- ✅ Array indexing and if expressions
-- ✅ Comprehensive documentation
+### Key Achievements
+- Complete end-to-end compilation pipeline (Lexer -> Parser -> Name Resolution -> Type Checking -> MIR -> Python Codegen)
+- Turing-completeness proven via Brainfuck interpreter
+- 296 tests with 100% pass rate
+- All control flow compiled to Python (if/while/for/match/return/break/continue)
+- Built-in function support (print, len, range, input, str, int, etc.)
+- Recursive function support with type annotations
+- `nevermind run` compiles and executes in one step
 
-### Next Steps 🚀
-- Implement runtime execution
-- Build standard library
-- Create REPL
-- Add IDE support
-
-**The future is bright! Nevermind is ready to grow.** 🌟
+### Next Steps
+- Implement interactive REPL (pipeline integration)
+- Expand standard library (math, string, collection functions)
+- Module system (import/export)
+- IDE support (VS Code extension, LSP)
 
 ---
 

@@ -1,8 +1,8 @@
 # Nevermind 项目 - 开发者交接文档
 
-**版本**: 0.2.0 - 类型检查器完成
-**日期**: 2025-01-08
-**状态**: ✅ 编译器前端完成
+**版本**: 0.4.0 - 端到端编译管线完成
+**日期**: 2026-02-08
+**状态**: 端到端编译管线完成 (296 tests, 100% pass)
 
 ---
 
@@ -36,11 +36,15 @@ Nevermind 是一个用 **Rust** 实现的现代编程语言编译器，目标是
 
 | 阶段 | 模块 | 状态 | 测试 |
 |------|------|------|------|
-| 1.1 | Lexer | ✅ | 108/108 ✓ |
-| 1.1 | Parser | ✅ | 100+/100+ ✓ |
-| 1.2 | Name Resolver | ✅ | 完整 ✓ |
-| 1.3 | Type Checker | ✅ | 30/30 ✓ |
-| 2.1 | Code Gen | 🚧 | 待实现 |
+| 1.1 | Lexer | ✅ | 108/108 |
+| 1.1 | Parser | ✅ | 100+/100+ |
+| 1.2 | Name Resolver | ✅ | 21/21 |
+| 1.3 | Type Checker | ✅ | 30/30 |
+| 2.1 | MIR Lowering | ✅ | - |
+| 2.2 | Python CodeGen | ✅ | - |
+| 2.3 | Compile Tests | ✅ | 17/17 |
+| 2.4 | Edge Cases | ✅ | 4/4 |
+| - | **总计** | **✅** | **296/296** |
 
 ---
 
@@ -80,81 +84,65 @@ criterion = "0.5"      # 基准测试
 nevermind/
 ├── Cargo.toml                 # 工作空间配置
 ├── README.md                  # 项目说明
-├── CONTRIBUTING.md            # 贡献指南 ⭐ 新
-├── DEVELOPER_HANDOFF.md       # 本文件 ⭐ 新
-│
-├── docs/                      # 项目文档
-│   ├── DESIGN_SPEC.md         # 语言设计规范
-│   ├── COMPILER_ARCHITECTURE.md # 编译器架构
-│   ├── PROJECT_SUMMARY.md     # 项目总结
-│   └── NEXT_STEPS.md          # 下一步计划
+├── CONTRIBUTING.md            # 贡献指南
+├── DEVELOPER_HANDOFF.md       # 本文件
 │
 ├── src/                       # CLI 工具
-│   └── main.rs                # 主入口
+│   └── main.rs                # 主入口 (compile, run, repl, check, fmt, lint)
 │
 ├── crates/                    # 编译器 Crates
 │   ├── common/                # 公共类型
-│   │   ├── src/lib.rs         # 导出模块
 │   │   ├── src/span.rs        # 源码位置跟踪
-│   │   ├── src/error.rs       # 错误类型
-│   │   └── Cargo.toml
+│   │   └── src/error.rs       # 错误类型
 │   │
 │   ├── ast/                   # 抽象语法树
-│   │   ├── src/lib.rs
-│   │   ├── src/expr.rs        # 表达式: 字面量、变量、运算等
-│   │   ├── src/stmt.rs        # 语句: let、if、for、match等
-│   │   ├── src/pattern.rs     # 模式: 用于匹配和绑定
-│   │   └── Cargo.toml
+│   │   ├── src/expr.rs        # 表达式定义
+│   │   ├── src/stmt.rs        # 语句定义
+│   │   └── src/pattern.rs     # 模式定义
 │   │
-│   ├── lexer/                 # 词法分析器
-│   │   ├── src/lib.rs
-│   │   ├── src/token.rs       # Token 定义
+│   ├── lexer/                 # 词法分析器 (108 tests)
 │   │   ├── src/lexer.rs       # Lexer 实现
-│   │   ├── tests/lexer_tests.rs # 108 个单元测试
-│   │   └── Cargo.toml
+│   │   └── src/token.rs       # Token 定义
 │   │
-│   ├── parser/                # 语法分析器
-│   │   ├── src/lib.rs
+│   ├── parser/                # 语法分析器 (100+ tests)
 │   │   ├── src/parser.rs      # 主解析器
-│   │   ├── src/expr_parser.rs # 表达式解析
-│   │   ├── src/pattern_parser.rs # 模式解析
-│   │   ├── tests/parser_tests.rs # 100+ 个测试
-│   │   └── Cargo.toml
+│   │   ├── src/expr_parser.rs # 表达式解析 (Pratt)
+│   │   └── src/pattern_parser.rs # 模式解析
 │   │
-│   ├── name-resolver/         # 名称解析器
-│   │   ├── src/lib.rs
-│   │   ├── src/symbol.rs      # 符号定义
-│   │   ├── src/scope.rs       # 作用域管理
-│   │   ├── src/symbol_table.rs # 符号表
-│   │   ├── src/error.rs       # 错误
-│   │   ├── src/resolver.rs    # 名称解析器
-│   │   ├── README.md          # 模块文档 ⭐ 新
-│   │   └── Cargo.toml
+│   ├── name-resolver/         # 名称解析器 (21 tests)
+│   │   ├── src/resolver.rs    # 名称解析器 (含内建函数注册)
+│   │   ├── src/scope.rs       # 作用域管理 (含内建遮蔽)
+│   │   └── src/symbol_table.rs # 符号表
 │   │
-│   └── type-checker/          # 类型检查器 ⭐ 新
-│       ├── src/lib.rs
-│       ├── src/types.rs       # 类型表示
-│       ├── src/ty.rs          # TypeVar & TypeScheme
-│       ├── src/environment.rs # 类型环境
-│       ├── src/unification.rs # 统一算法
-│       ├── src/checker.rs     # 主检查器
-│       ├── src/error.rs       # 类型错误
-│       ├── README.md          # 模块文档 ⭐ 新
-│       └── Cargo.toml
+│   ├── type-checker/          # 类型检查器 (30 tests)
+│   │   ├── src/checker.rs     # 主检查器 (递归函数预声明)
+│   │   ├── src/environment.rs # 类型环境 (含内建类型)
+│   │   ├── src/unification.rs # Robinson 统一算法
+│   │   └── src/ty.rs          # TypeVar & TypeScheme
+│   │
+│   ├── mir/                   # 中间表示
+│   │   ├── src/lowering.rs    # AST -> MIR lowering
+│   │   ├── src/stmt.rs        # MirStmt (10 variants)
+│   │   ├── src/expr.rs        # MirExpr / MirExprStmt
+│   │   └── src/pattern.rs     # MirPattern
+│   │
+│   └── codegen/               # 代码生成
+│       ├── src/python.rs      # Python 代码生成器
+│       └── src/emit.rs        # BytecodeChunk 输出
 │
-├── examples/                  # 示例程序
-│   ├── simple.nm              # 简单变量
+├── examples/                  # 示例程序 (全部可编译运行)
+│   ├── hello.nm               # Hello World
 │   ├── math.nm                # 数学运算
-│   ├── test_fn.nm             # 函数定义
-│   ├── test_if.nm             # If 表达式
-│   ├── test_while.nm          # While 循环
-│   ├── test_for.nm            # For 循环
-│   ├── test_match_simple.nm   # 模式匹配
-│   ├── complex.nm             # 复杂组合
-│   └── ...
+│   ├── functions.nm           # 函数和递归
+│   ├── variables.nm           # 变量和类型
+│   ├── lists.nm               # 列表操作
+│   ├── patterns.nm            # 模式匹配
+│   ├── simple_fn.nm           # 简单函数
+│   └── brainfuck_simple.nm    # 图灵完备性证明
 │
 └── tests/                     # 集成测试
-    └── ...
+    ├── compile_tests.rs       # 17 个端到端编译测试
+    └── edge_cases.rs          # 4 个边界测试
 ```
 
 ---
@@ -258,7 +246,7 @@ nevermind/
 ## 编译流程
 
 ```
-源代码 (examples/simple.nm)
+源代码 (examples/hello.nm)
     ↓
 Lexer (Token 序列)
     ├─ 关键字识别
@@ -273,18 +261,29 @@ Parser (AST)
     ↓
 Name Resolver (作用域信息)
     ├─ 符号表构建
+    ├─ 内建函数注册 (print, len, range...)
     ├─ 作用域管理
     └─ 变量使用检查
     ↓
-Type Checker (类型信息) ⭐ 新
-    ├─ 类型推断
-    ├─ 类型统一
-    ├─ 多态性处理
-    └─ 类型错误检测
+Type Checker (类型信息)
+    ├─ 类型推断 (Hindley-Milner)
+    ├─ 类型统一 (Robinson)
+    ├─ 递归函数预声明
+    └─ 内建函数类型
     ↓
-[未来] Code Generation
-    ├─ MIR (Mid-level IR)
-    └─ Python Bytecode
+MIR Lowering
+    ├─ AST -> MirStmt/MirExpr
+    ├─ 控制流 (If/While/For/Match/Return/Break/Continue)
+    ├─ 函数体展平 (Block -> statements)
+    └─ 模式 lowering
+    ↓
+Python CodeGen
+    ├─ MirStmt -> Python 语句
+    ├─ 自动 main() 入口点
+    └─ 字符串插值 -> f-string
+    ↓
+Python 执行 (nevermind run)
+    └─ 跨平台 Python 发现 (python/python3/py)
 ```
 
 ---
@@ -379,9 +378,11 @@ gdb target/debug/nevermind
 |-------|--------|--------|
 | nevermind-lexer | 108 | 100% |
 | nevermind-parser | 100+ | 100% |
-| nevermind-name-resolver | 完整 | 100% |
+| nevermind-name-resolver | 21 | 100% |
 | nevermind-type-checker | 30 | 100% |
-| **总计** | **238+** | **100%** |
+| compile_tests | 17 | 100% |
+| edge_cases | 4 | 100% |
+| **总计** | **296** | **100%** |
 
 ### 集成测试
 
@@ -489,26 +490,24 @@ pub fn parse_range_pattern(&mut self) -> ParseResult<Pattern> {
 
 ## 下一步工作
 
-### 短期 (1-2 周)
+### 短期
 
-- [ ] 集成类型检查器到 CLI
-- [ ] 添加类型注解语法
-- [ ] 实现类型推导错误恢复
-- [ ] 添加更多类型检查测试
+- [ ] REPL 集成（接入完整编译管线）
+- [ ] 扩展内建函数（math, string 操作）
+- [ ] 改进错误消息
 
-### 中期 (1-2 月)
+### 中期
 
-- [ ] 设计 MIR (Mid-level IR)
-- [ ] 实现 Python 字节码生成
-- [ ] 实现运行时系统
-- [ ] 实现基本标准库
+- [ ] 模块系统 (import/export)
+- [ ] 错误处理类型 (Result, Option)
+- [ ] 多错误报告（不在第一个错误时停止）
 
-### 长期 (3-6 月)
+### 长期
 
-- [ ] REPL (Read-Eval-Print Loop)
-- [ ] VS Code 插件
+- [ ] VS Code 插件 (LSP)
 - [ ] 包管理器
-- [ ] 性能优化
+- [ ] 泛型和 Traits
+- [ ] LLVM 后端
 
 ---
 
@@ -542,10 +541,10 @@ pub fn parse_range_pattern(&mut self) -> ParseResult<Pattern> {
 ## 代码统计
 
 ```
-总 Crates: 7 个
-总文件: 60+ 个
-总代码: 7,000+ 行
-总测试: 259+ 个
+总 Crates: 9 个
+总文件: 70+ 个
+总代码: 10,000+ 行
+总测试: 296 个 (100% 通过)
 文档: 15+ 个
 ```
 
@@ -553,19 +552,20 @@ pub fn parse_range_pattern(&mut self) -> ParseResult<Pattern> {
 
 ## 关键成就
 
-### ✅ 编译器前端完成
+### 端到端编译管线完成
 
 - Lexer + Parser + Name Resolver + Type Checker + MIR + CodeGen
-- 可以解析所有 Nevermind 语法
-- 完整的类型推断和检查
-- 检测未定义变量和重复定义
-- **可以成功编译到 Python 代码** ⭐ 2025-01-13
+- 可以解析、编译、运行所有 Nevermind 示例
+- 完整的类型推断和检查（含递归函数支持）
+- 所有控制流编译到 Python（if/while/for/match/return/break/continue）
+- 13 个内建函数（print, len, range, input, str, int, float, bool, type, abs, min, max）
+- `nevermind run examples/hello.nm` 输出 "Hello, World!"
 
-### ✅ 测试覆盖
+### 测试覆盖
 
-- 259+ 个单元测试
-- 所有测试 99% 通过
+- 296 个测试，100% 通过
 - 覆盖所有主要功能
+- 17 个端到端编译测试
 
 ### ✅ 文档完整
 
@@ -745,6 +745,6 @@ MIT License
 
 ---
 
-*最后更新: 2025-01-13*
-*文档版本: 0.2.1*
-*状态: ✅ 编译器前端完成，Python代码生成可用*
+*最后更新: 2026-02-08*
+*文档版本: 0.4.0*
+*状态: 端到端编译管线完成，所有示例可编译运行*

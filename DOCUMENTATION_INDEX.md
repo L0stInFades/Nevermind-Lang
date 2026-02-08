@@ -31,10 +31,14 @@
   - Parser coverage: `crates/parser/tests/parser_tests.rs`
   - End-to-end typing edge cases: `tests/edge_cases.rs`
 
-## Recent Updates (Jan 2026)
-- Added lexer boundary tests for tab indentation and chained dedents; logical `!` now recognized as `not`.
-- Parser accepts optional trailing `end` after function bodies and keeps pipeline parsing stable with `|>` and `|...|` lambdas separated.
-- New integration tests guard mixed-type lists, map key constraints, and pipeline stage typing.
+## Recent Updates (Feb 2026 - v0.4.0)
+- Complete MIR/codegen pipeline: all control flow (if/while/for/match/return/break/continue) compiles to Python.
+- Built-in function support in name resolver and type checker (print, len, range, input, str, int, etc.).
+- Recursive function support via type annotation pre-declaration.
+- 17 end-to-end compilation tests in `tests/compile_tests.rs`.
+- `nevermind run examples/hello.nm` produces "Hello, World!".
+- 296 tests, 100% pass rate.
+- Cross-platform Python discovery (python/python3/py).
 
 ## Archives
 - High-signal summaries of older reports: `docs/ARCHIVE.md`
