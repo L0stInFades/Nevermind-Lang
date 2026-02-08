@@ -187,12 +187,24 @@ impl NameResolver {
                 // Enter loop scope
                 self.symbol_table.enter_loop();
 
-                // Declare loop variable
-                self.resolve_pattern(variable)?;
-                self.symbol_table.declare(
-                    self.pattern_name(variable)?,
-                    Symbol::loop_variable(self.pattern_name(variable)?, nevermind_common::Span::dummy()),
-                )?;
+                // Declare loop variable (resolve_pattern already declares Variable patterns,
+                // so only declare explicitly for non-variable patterns like Tuple/Wildcard)
+                match variable {
+                    Pattern::Variable { .. } => {
+                        // resolve_pattern will declare it
+                        self.resolve_pattern(variable)?;
+                    }
+                    _ => {
+                        self.resolve_pattern(variable)?;
+                        let name = self.pattern_name(variable)?;
+                        if name != "_" && name != "<pattern>" {
+                            self.symbol_table.declare(
+                                name.clone(),
+                                Symbol::loop_variable(name, nevermind_common::Span::dummy()),
+                            )?;
+                        }
+                    }
+                }
 
                 // Resolve body
                 for stmt in body {

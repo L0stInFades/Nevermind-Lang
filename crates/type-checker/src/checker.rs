@@ -199,12 +199,8 @@ impl TypeChecker {
                 // Type check body
                 self.env.enter_scope();
 
-                // Bind loop variable
-                let scheme = TypeScheme::monomorphic(elem_ty.clone());
+                // Bind loop variable (check_pattern handles Variable declaration)
                 self.check_pattern(variable, &elem_ty)?;
-                if let Pattern::Variable { name, .. } = variable {
-                    self.env.insert(name.clone(), scheme)?;
-                }
 
                 for stmt in body {
                     self.check_statement(stmt)?;

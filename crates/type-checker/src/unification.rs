@@ -105,6 +105,13 @@ impl Unifier {
 
     /// Bind a type variable to a type
     fn bind_var(&mut self, var: TypeVarRef, ty: Type, span: &Span) -> Result<()> {
+        // If the type is the same variable, nothing to do
+        if let Type::Var(ref v) = ty {
+            if v.id() == var.id() {
+                return Ok(());
+            }
+        }
+
         // Occurs check: ensure the variable doesn't occur in the type
         if self.occurs(&var, &ty) {
             return Err(TypeError::new(

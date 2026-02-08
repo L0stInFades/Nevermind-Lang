@@ -428,7 +428,7 @@ fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>>
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
                 if !output.status.success() {
-                    return Err(stderr.into());
+                    return Err(friendly_runtime_error(&stderr).into());
                 }
                 return Ok(stdout);
             }
@@ -447,21 +447,47 @@ fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>>
     .into())
 }
 
+/// Check if a word boundary exists around "do" at the given position in a string.
+fn has_do_keyword(s: &str) -> bool {
+    for (i, _) in s.match_indices("do") {
+        let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
+        let after = i + 2;
+        let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
+        if before_ok && after_ok {
+            return true;
+        }
+    }
+    false
+}
+
+/// Check if a word boundary exists around "end" at the given position in a string.
+fn has_end_keyword(s: &str) -> bool {
+    for (i, _) in s.match_indices("end") {
+        let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
+        let after = i + 3;
+        let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
+        if before_ok && after_ok {
+            return true;
+        }
+    }
+    false
+}
+
 /// Check if the input buffer needs more lines (multi-line input).
 fn needs_more_input(input: &str) -> bool {
     let mut depth: i32 = 0;
 
     for line in input.lines() {
         let trimmed = line.trim();
-        // Count block openers
-        if trimmed.contains(" do") || trimmed.starts_with("do") {
+        // Count block openers (word-boundary "do")
+        if has_do_keyword(trimmed) {
             depth += 1;
         }
         if trimmed.starts_with("match ") || trimmed == "match" {
             depth += 1;
         }
-        // Count block closers
-        if trimmed == "end" || trimmed.ends_with(" end") {
+        // Count block closers (word-boundary "end")
+        if has_end_keyword(trimmed) {
             depth -= 1;
         }
     }
@@ -472,8 +498,7 @@ fn needs_more_input(input: &str) -> bool {
 
     // Check for fn signature without body (no "do" on same line)
     let first_line = input.lines().next().unwrap_or("").trim();
-    if first_line.starts_with("fn ") && !first_line.contains(" do") && !first_line.contains(" end") {
-        // Single-line fn without do/end needs more input
+    if first_line.starts_with("fn ") && !has_do_keyword(first_line) && !has_end_keyword(first_line) {
         let line_count = input.lines().count();
         if line_count == 1 {
             return true;
@@ -505,6 +530,42 @@ fn strip_main_guard(python: &str) -> String {
     }
 
     lines.join("\n")
+}
+
+/// Extract a friendly error message from a Python traceback.
+fn friendly_runtime_error(stderr: &str) -> String {
+    // Try to extract just the last line which has the actual error type and message
+    // e.g. "ZeroDivisionError: division by zero"
+    let lines: Vec<&str> = stderr.trim().lines().collect();
+    if let Some(last) = lines.last() {
+        let last = last.trim();
+        // Map common Python errors to friendly messages
+        if last.starts_with("ZeroDivisionError") {
+            return "Cannot divide by zero".to_string();
+        }
+        if last.starts_with("TypeError") {
+            if let Some(msg) = last.strip_prefix("TypeError: ") {
+                return format!("Type error: {}", msg);
+            }
+        }
+        if last.starts_with("NameError") {
+            if let Some(msg) = last.strip_prefix("NameError: ") {
+                return format!("Name error: {}", msg);
+            }
+        }
+        if last.starts_with("IndexError") {
+            return "Index out of range".to_string();
+        }
+        if last.starts_with("OverflowError") {
+            return "Number too large".to_string();
+        }
+        if last.starts_with("RecursionError") {
+            return "Too many recursive calls (infinite recursion?)".to_string();
+        }
+        // Fallback: return just the last line (the error itself, not the traceback)
+        return last.to_string();
+    }
+    stderr.to_string()
 }
 
 /// Check a file for errors
