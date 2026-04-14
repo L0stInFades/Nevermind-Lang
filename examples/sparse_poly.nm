@@ -1,0 +1,243 @@
+# 一元稀疏多项式 (Univariate Sparse Polynomial)
+#
+# 存储布局：[cap, size, e0, c0, e1, c1, ..., e_{cap-1}, c_{cap-1}]
+#   p[0] = 容量 cap（最多项数）
+#   p[1] = 当前项数 size
+#   p[2+2*i] = 第 i 项的指数 exponent（按升序存储）
+#   p[3+2*i] = 第 i 项的系数 coefficient
+#
+# 仅存储系数非零的项，按指数升序排列。
+# get_term O(1)；add_term / find O(n)；poly_add O(n*m)。
+
+# ── 构造 ───────────────────────────────────────────────────────────────────────
+
+fn make_poly() do
+  # cap=10，共 2+10*2=22 个槽位
+  [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+# ── 插入 / 合并项（有序插入，同指数则累加系数）─────────────────────────────────
+
+fn poly_add_term(p, exp, coef) do
+  var size = p[1]
+  var i = 0
+  var found_idx = -1
+  while i < size do
+    var e_idx = 2 + 2 * i
+    var ei = p[e_idx]
+    if ei == exp do
+      if found_idx == -1 do
+        found_idx = i
+      end
+    end
+    i = i + 1
+  end
+  if found_idx >= 0 do
+    var ci_idx = 3 + 2 * found_idx
+    var new_coef = p[ci_idx] + coef
+    p[ci_idx] = new_coef
+    if new_coef == 0 do
+      var mi = found_idx
+      while mi < size - 1 do
+        var mnext = mi + 1
+        var rm_src_e = p[2 + 2 * mnext]
+        var rm_src_c = p[3 + 2 * mnext]
+        var rm_dst_e = 2 + 2 * mi
+        var rm_dst_c = 3 + 2 * mi
+        p[rm_dst_e] = rm_src_e
+        p[rm_dst_c] = rm_src_c
+        mi = mi + 1
+      end
+      p[1] = p[1] - 1
+    end
+  end
+  if found_idx < 0 do
+    if size < p[0] do
+      var pos = size
+      var j = 0
+      var pos_set = 0
+      while j < size do
+        var ej_idx = 2 + 2 * j
+        var ej = p[ej_idx]
+        if ej > exp do
+          if pos_set == 0 do
+            pos = j
+            pos_set = 1
+          end
+        end
+        j = j + 1
+      end
+      var k = size - 1
+      while k >= pos do
+        var src_e = p[2 + 2 * k]
+        var src_c = p[3 + 2 * k]
+        var dst_e_idx = 4 + 2 * k
+        var dst_c_idx = 5 + 2 * k
+        p[dst_e_idx] = src_e
+        p[dst_c_idx] = src_c
+        k = k - 1
+      end
+      var ins_e_idx = 2 + 2 * pos
+      var ins_c_idx = 3 + 2 * pos
+      p[ins_e_idx] = exp
+      p[ins_c_idx] = coef
+      p[1] = p[1] + 1
+    end
+  end
+end
+
+# ── 幂运算（整数次幂，n >= 0）──────────────────────────────────────────────────
+
+fn poly_power(x, n) do
+  var result = 1
+  var i = 0
+  while i < n do
+    result = result * x
+    i = i + 1
+  end
+  result
+end
+
+# ── 代入求值 ───────────────────────────────────────────────────────────────────
+
+fn poly_eval(p, x) do
+  var size = p[1]
+  var total = 0
+  var i = 0
+  while i < size do
+    var ei = p[2 + 2 * i]
+    var ci = p[3 + 2 * i]
+    var term = ci * poly_power(x, ei)
+    total = total + term
+    i = i + 1
+  end
+  total
+end
+
+# ── 打印（逐项输出：exp coef）──────────────────────────────────────────────────
+
+fn poly_print(p) do
+  print "Poly [exp, coef]:"
+  var size = p[1]
+  var i = 0
+  while i < size do
+    var ei = p[2 + 2 * i]
+    var ci = p[3 + 2 * i]
+    print ei
+    print ci
+    i = i + 1
+  end
+end
+
+# ── 多项式加法（返回新多项式）──────────────────────────────────────────────────
+
+fn poly_add(p, q) do
+  var result = make_poly()
+  var psize = p[1]
+  var pi = 0
+  while pi < psize do
+    var pei = p[2 + 2 * pi]
+    var pci = p[3 + 2 * pi]
+    poly_add_term(result, pei, pci)
+    pi = pi + 1
+  end
+  var qsize = q[1]
+  var qi = 0
+  while qi < qsize do
+    var qei = q[2 + 2 * qi]
+    var qci = q[3 + 2 * qi]
+    poly_add_term(result, qei, qci)
+    qi = qi + 1
+  end
+  result
+end
+
+# ── 演示 ───────────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 一元稀疏多项式演示 ==="
+
+  # p1 = -1 + x + 2x^3 + 3x^5
+  var p1 = make_poly()
+  poly_add_term(p1, 0, -1)
+  poly_add_term(p1, 1, 1)
+  poly_add_term(p1, 3, 2)
+  poly_add_term(p1, 5, 3)
+
+  print ""
+  print "p1 = -1 + x + 2x^3 + 3x^5:"
+  poly_print(p1)
+
+  # p2 = 5 - 2x^3 + x^4
+  var p2 = make_poly()
+  poly_add_term(p2, 0, 5)
+  poly_add_term(p2, 3, -2)
+  poly_add_term(p2, 4, 1)
+
+  print ""
+  print "p2 = 5 - 2x^3 + x^4:"
+  poly_print(p2)
+
+  print ""
+  print "p1 + p2  (expect: 4 + x + x^4 + 3x^5，x^3 系数互消后自动删除):"
+  var p3 = poly_add(p1, p2)
+  poly_print(p3)
+
+  print ""
+  print "p1(2) (expect 113):"
+  print poly_eval(p1, 2)
+
+  print ""
+  print "p2(2) (expect 5):"
+  print poly_eval(p2, 2)
+
+  print ""
+  print "p3(2) (expect 118):"
+  print poly_eval(p3, 2)
+
+  print ""
+  print "-- 乱序插入测试（指数 5 3 1 4 2 0）--"
+  var p4 = make_poly()
+  poly_add_term(p4, 5, 1)
+  poly_add_term(p4, 3, 2)
+  poly_add_term(p4, 1, 3)
+  poly_add_term(p4, 4, 4)
+  poly_add_term(p4, 2, 5)
+  poly_add_term(p4, 0, 6)
+  poly_print(p4)
+
+  print ""
+  print "-- 同指数累加测试（3+4-2=5，不消零）--"
+  var p5 = make_poly()
+  poly_add_term(p5, 2, 3)
+  poly_add_term(p5, 2, 4)
+  poly_add_term(p5, 2, -2)
+  poly_print(p5)
+
+  print ""
+  print "-- 系数互消测试（x^2 中项 +3 -3 = 0，应被删除）--"
+  var p6 = make_poly()
+  poly_add_term(p6, 1, 5)
+  poly_add_term(p6, 2, 3)
+  poly_add_term(p6, 3, 7)
+  poly_add_term(p6, 2, -3)
+  poly_print(p6)
+
+  print ""
+  print "-- 首项互消（x^1 删后 x^2 x^3 保留）--"
+  var p7 = make_poly()
+  poly_add_term(p7, 1, 9)
+  poly_add_term(p7, 2, 4)
+  poly_add_term(p7, 3, 2)
+  poly_add_term(p7, 1, -9)
+  poly_print(p7)
+
+  print ""
+  print "-- 末项互消（x^3 删后 x^1 x^2 保留）--"
+  var p8 = make_poly()
+  poly_add_term(p8, 1, 1)
+  poly_add_term(p8, 2, 2)
+  poly_add_term(p8, 3, 6)
+  poly_add_term(p8, 3, -6)
+  poly_print(p8)
+end

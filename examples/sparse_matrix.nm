@@ -1,0 +1,286 @@
+# 稀疏矩阵（三元组表 + 快速转置 + 带行位置信息的三元组表）
+#
+# ① 三元组表  (Triple Table)
+#    存储布局：[rows, cols, nnz, r0, c0, v0, r1, c1, v1, ...]
+#      m[0] = 行数 rows
+#      m[1] = 列数 cols
+#      m[2] = 非零元个数 nnz
+#      m[3+3*k] = 第 k 个非零元的行下标
+#      m[4+3*k] = 第 k 个非零元的列下标
+#      m[5+3*k] = 第 k 个非零元的值
+#    元素按 (row, col) 字典序存储（即先行后列）。
+#
+# ② 快速转置  (Fast Transpose, O(cols + nnz))
+#    col_count[j] = 第 j 列非零元个数
+#    col_start[j] = 转置后第 j 行（原 j 列）的起始位置
+#
+# ③ 带行位置信息的三元组表  (Row-Linked Triple Table, RLT)
+#    存储布局：[rows, cols, nnz, rs0, rs1, ..., rs_{R-1}, r0, c0, v0, ...]
+#      rlt[0]   = rows
+#      rlt[1]   = cols
+#      rlt[2]   = nnz
+#      rlt[3+i] = 第 i 行第一个非零元在三元组序列中的下标（行为空则等于 nnz）
+#      rlt[3+R+3*k] = 第 k 个非零元行
+#      rlt[4+R+3*k] = 第 k 个非零元列
+#      rlt[5+R+3*k] = 第 k 个非零元值
+#    访问第 r 行：从 rlt[3+r] 开始，直到行下标不等于 r 或越界。
+
+# ── 三元组表 ───────────────────────────────────────────────────────────────────
+
+fn make_matrix(rows, cols) do
+  # 3 头 + 12*3 数据 = 39 槽位（最多 12 个非零元）
+  [rows, cols, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+fn matrix_add_elem(m, r, c, v) do
+  var nnz = m[2]
+  if nnz < 12 do
+    var base = 3 + 3 * nnz
+    m[base] = r
+    m[base + 1] = c
+    m[base + 2] = v
+    m[2] = m[2] + 1
+  end
+end
+
+fn matrix_get(m, r, c) do
+  var nnz = m[2]
+  var result = 0
+  var k = 0
+  while k < nnz do
+    var base = 3 + 3 * k
+    var rk = m[base]
+    var ck = m[base + 1]
+    if rk == r do
+      if ck == c do
+        result = m[base + 2]
+      end
+    end
+    k = k + 1
+  end
+  result
+end
+
+fn matrix_print(m) do
+  print "Matrix (rows cols nnz):"
+  print m[0]
+  print m[1]
+  print m[2]
+  print "Triples [row col val]:"
+  var nnz = m[2]
+  var k = 0
+  while k < nnz do
+    var base = 3 + 3 * k
+    print m[base]
+    print m[base + 1]
+    print m[base + 2]
+    k = k + 1
+  end
+end
+
+# ── 快速转置 ───────────────────────────────────────────────────────────────────
+
+fn make_work_array() do
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+fn matrix_fast_transpose(m) do
+  var R = m[0]
+  var C = m[1]
+  var N = m[2]
+
+  # 步骤 1：统计每列非零元个数
+  var col_count = make_work_array()
+  var k = 0
+  while k < N do
+    var ck = m[4 + 3 * k]
+    col_count[ck] = col_count[ck] + 1
+    k = k + 1
+  end
+
+  # 步骤 2：计算每列在转置结果中的起始位置（前缀和）
+  var col_start = make_work_array()
+  col_start[0] = 0
+  var j = 1
+  while j < C do
+    var prev = col_start[j - 1] + col_count[j - 1]
+    col_start[j] = prev
+    j = j + 1
+  end
+
+  # 步骤 3：构建转置矩阵
+  var t = make_matrix(C, R)
+  t[2] = N
+  var i = 0
+  while i < N do
+    var ri = m[3 + 3 * i]
+    var ci = m[4 + 3 * i]
+    var vi = m[5 + 3 * i]
+    var pos = col_start[ci]
+    var tbase = 3 + 3 * pos
+    t[tbase] = ci
+    t[tbase + 1] = ri
+    t[tbase + 2] = vi
+    col_start[ci] = col_start[ci] + 1
+    i = i + 1
+  end
+
+  t
+end
+
+# ── 带行位置信息的三元组表 (RLT) ───────────────────────────────────────────────
+
+fn make_rlt() do
+  # 3 头 + 8 行起始位 + 12*3 数据 = 47 槽位（最多 8 行，最多 12 个非零元）
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+# 从已按行排序的三元组表 m 构建 RLT
+fn rlt_build(m, rlt) do
+  var R = m[0]
+  var C = m[1]
+  var N = m[2]
+  rlt[0] = R
+  rlt[1] = C
+  rlt[2] = N
+
+  # 初始化所有行起始位为 N（表示该行为空）
+  var r = 0
+  while r < R do
+    rlt[3 + r] = N
+    r = r + 1
+  end
+
+  # 倒序遍历：将 row_start 设为最小（最早）出现的下标
+  var k = N - 1
+  while k >= 0 do
+    var src_base = 3 + 3 * k
+    var row_k = m[src_base]
+    var col_k = m[src_base + 1]
+    var val_k = m[src_base + 2]
+    var dst_base = 3 + R + 3 * k
+    rlt[dst_base] = row_k
+    rlt[dst_base + 1] = col_k
+    rlt[dst_base + 2] = val_k
+    rlt[3 + row_k] = k
+    k = k - 1
+  end
+end
+
+# 按行快速定位后读取 (r, c) 处的值；未找到返回 0
+fn rlt_get(rlt, r, c) do
+  var R = rlt[0]
+  var N = rlt[2]
+  var start = rlt[3 + r]
+  var result = 0
+  var k = start
+  while k < N do
+    var elem_base = 3 + R + 3 * k
+    var row_k = rlt[elem_base]
+    var col_k = rlt[elem_base + 1]
+    if row_k == r do
+      if col_k == c do
+        result = rlt[elem_base + 2]
+      end
+    end
+    if row_k > r do
+      k = N
+    end
+    k = k + 1
+  end
+  result
+end
+
+# 打印指定行的所有非零元
+fn rlt_print_row(rlt, r) do
+  print "Row:"
+  print r
+  var R = rlt[0]
+  var N = rlt[2]
+  var start = rlt[3 + r]
+  var k = start
+  while k < N do
+    var elem_base = 3 + R + 3 * k
+    var row_k = rlt[elem_base]
+    if row_k == r do
+      var col_k = rlt[elem_base + 1]
+      var val_k = rlt[elem_base + 2]
+      print col_k
+      print val_k
+    end
+    if row_k > r do
+      k = N
+    end
+    k = k + 1
+  end
+end
+
+# ── 演示 ───────────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 稀疏矩阵演示 ==="
+
+  # 构造 4x5 矩阵：
+  #   (0,0,1) (0,2,3)
+  #   (1,1,2)
+  #   (2,0,4) (2,3,5)
+  #   (3,2,6)
+  var m = make_matrix(4, 5)
+  matrix_add_elem(m, 0, 0, 1)
+  matrix_add_elem(m, 0, 2, 3)
+  matrix_add_elem(m, 1, 1, 2)
+  matrix_add_elem(m, 2, 0, 4)
+  matrix_add_elem(m, 2, 3, 5)
+  matrix_add_elem(m, 3, 2, 6)
+
+  print ""
+  print "-- 原矩阵 (4x5) --"
+  matrix_print(m)
+
+  print ""
+  print "-- 随机访问 get(2,3) (expect 5) --"
+  print matrix_get(m, 2, 3)
+
+  print ""
+  print "-- 随机访问 get(0,1) (expect 0，零元) --"
+  print matrix_get(m, 0, 1)
+
+  print ""
+  print "-- 快速转置 (5x4) --"
+  var t = matrix_fast_transpose(m)
+  matrix_print(t)
+
+  print ""
+  print "-- 构建带行位置信息的三元组表 (RLT) --"
+  var rlt = make_rlt()
+  rlt_build(m, rlt)
+
+  print ""
+  print "-- RLT: 按行直接定位第 0 行 --"
+  rlt_print_row(rlt, 0)
+
+  print ""
+  print "-- RLT: 按行直接定位第 2 行 --"
+  rlt_print_row(rlt, 2)
+
+  print ""
+  print "-- RLT: 按行直接定位第 3 行 --"
+  rlt_print_row(rlt, 3)
+
+  print ""
+  print "-- RLT get(2,3) (expect 5) --"
+  print rlt_get(rlt, 2, 3)
+
+  print ""
+  print "-- RLT get(0,0) (expect 1) --"
+  print rlt_get(rlt, 0, 0)
+
+  print ""
+  print "-- RLT get(1,0) (expect 0，零元) --"
+  print rlt_get(rlt, 1, 0)
+
+  print ""
+  print "-- 对转置矩阵再次转置，应还原 --"
+  var tt = matrix_fast_transpose(t)
+  matrix_print(tt)
+end
