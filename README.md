@@ -280,7 +280,7 @@ if is_valid or is_exception
 
 ## Implementation Status
 
-**Current Version**: 0.4.0 (February 2026)
+**Current Version**: 0.5.0 (April 2026)
 
 ### ✅ Completed - Full Compilation Pipeline
 - [x] Language specification
@@ -291,8 +291,8 @@ if is_valid or is_exception
 - [x] **MIR Lowering** (complete statement-level control flow)
 - [x] **Python Code Generator** (all statement types)
 - [x] **CLI Tools** (compile, check, run commands)
-- [x] **Array/List indexing**
-- [x] **If expressions**
+- [x] **Array/List indexing** and **in-place mutation** (`arr[i] = v`)
+- [x] **If expressions** (`then/else`) and **If statements** (`do/end`)
 - [x] **While/For loops** (compiled to Python)
 - [x] **Break/Continue/Return** statements
 - [x] **Pattern matching** (match/case codegen)
@@ -300,12 +300,34 @@ if is_valid or is_exception
 - [x] **Recursive functions** (with type annotation support)
 - [x] **End-to-end execution** (`nevermind run` compiles and runs)
 - [x] **Turing-Complete** (proved via Brainfuck interpreter)
+- [x] **Integer division** (`/` → Python `//`, correct floor semantics)
 
 ### ✅ Interactive REPL
 - [x] REPL with full compilation pipeline integration
 - [x] Persistent function/variable definitions across inputs
 - [x] Multi-line input support (`do...end`, `match...end` blocks)
 - [x] REPL commands (`:help`, `:clear`, `:defs`)
+
+### ✅ Algorithm & Data Structure Examples (17 programs)
+
+| Category | File | Algorithm |
+|----------|------|-----------|
+| **Sorting** | `bubble_sort.nm` | 冒泡排序 |
+| | `insertion_sort.nm` | 直接插入排序 (10 tests) |
+| | `shell_sort.nm` | 希尔排序 (10 tests) |
+| | `radix_sort.nm` | 基数排序 LSD (10 tests) |
+| | `multi_key_radix_sort.nm` | 多关键字基数排序 (8 tests) |
+| | `merge_sort.nm` | 归并排序 (14 tests) |
+| | `quick_sort.nm` | 快速排序 (15 tests) |
+| **Search** | `binary_search.nm` | 折半查找 (14 tests, iterative + recursive) |
+| **D&C** | `divide_conquer.nm` | 分治算法 — max/min/sum/power/max-subarray (14 tests) |
+| **Data Structures** | `linked_list.nm` | nil/cons 链表 |
+| | `seq_list.nm` | 顺序表 |
+| | `seq_stack.nm` | 顺序栈 |
+| | `circ_queue.nm` | 循环队列 |
+| | `sparse_poly.nm` | 稀疏多项式 |
+| | `sparse_matrix.nm` | 稀疏矩阵 |
+| | `generalized_list.nm` | 广义表 (15 tests, flat-int encoding) |
 
 ### 🚧 In Progress
 - [ ] Standard library expansion (more math, string, collection functions)
@@ -423,6 +445,21 @@ The Nevermind compiler has a **complete end-to-end pipeline** that can:
 | Compile Tests | 17 | ✅ All passing |
 | Edge Cases | 4 | ✅ All passing |
 | **Total** | **296** | ✅ **100% passing** |
+
+### Example Program Test Cases
+
+| Program | Language | Tests |
+|---------|----------|-------|
+| `binary_search.nm` | 折半查找 | 14 |
+| `divide_conquer.nm` | 分治算法 | 14 |
+| `merge_sort.nm` | 归并排序 | 14 |
+| `quick_sort.nm` | 快速排序 | 15 |
+| `generalized_list.nm` | 广义表 | 15 |
+| `insertion_sort.nm` | 直接插入排序 | 10 |
+| `shell_sort.nm` | 希尔排序 | 10 |
+| `radix_sort.nm` | 基数排序 | 10 |
+| `multi_key_radix_sort.nm` | 多关键字基数排序 | 8 |
+| **Example Total** | | **110+** |
 
 ### Turing Completeness
 
@@ -574,4 +611,4 @@ If you use Nevermind in research, please cite:
 
 ---
 
-*Version 0.4.0 - End-to-End Compilation Pipeline Complete*
+*Version 0.5.0 - Algorithm Examples Complete (17 programs, 110+ test cases)*

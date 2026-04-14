@@ -1,0 +1,263 @@
+# 归并排序 (Merge Sort) 测试用例
+# Nevermind 语言实现 - 自顶向下递归版本 (Top-down Recursive)
+
+# ── 辅助函数 ───────────────────────────────────────────────────────────────
+
+# 提取子列表 [start, end_idx] (含两端)
+fn sublist(arr: List[Int], start: Int, end_idx: Int) -> List[Int] do
+  var result = []
+  var i = start
+  while i <= end_idx do
+    result = result + [arr[i]]
+    i = i + 1
+  end
+  result
+end
+
+# 合并两个已排序列表
+fn merge(left: List[Int], right: List[Int]) -> List[Int] do
+  var result = []
+  var i = 0
+  var j = 0
+  while i < len(left) and j < len(right) do
+    var take_left = if left[i] <= right[j] then 1 else 0 end
+    if take_left == 1 do
+      result = result + [left[i]]
+      i = i + 1
+    end
+    if take_left == 0 do
+      result = result + [right[j]]
+      j = j + 1
+    end
+  end
+  while i < len(left) do
+    result = result + [left[i]]
+    i = i + 1
+  end
+  while j < len(right) do
+    result = result + [right[j]]
+    j = j + 1
+  end
+  result
+end
+
+# ── 归并排序主函数 ─────────────────────────────────────────────────────────
+
+fn merge_sort(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  if n <= 1 do
+    return arr
+  end
+  var mid = n / 2
+  var left = merge_sort(sublist(arr, 0, mid - 1))
+  var right = merge_sort(sublist(arr, mid, n - 1))
+  merge(left, right)
+end
+
+# ── 验证辅助 ───────────────────────────────────────────────────────────────
+
+fn is_sorted(arr: List[Int]) -> Bool do
+  var i = 1
+  while i < len(arr) do
+    if arr[i - 1] > arr[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn arrays_equal(a: List[Int], b: List[Int]) -> Bool do
+  if len(a) != len(b) do
+    return false
+  end
+  var i = 0
+  while i < len(a) do
+    if a[i] != b[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_merge_sort_empty() do
+  print "测试用例 1: 空列表"
+  let input = []
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(len(result) == 0)
+  print ""
+end
+
+fn test_merge_sort_single() do
+  print "测试用例 2: 单个元素"
+  let input = [99]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 99)
+  print ""
+end
+
+fn test_merge_sort_two_elements() do
+  print "测试用例 3: 两个元素"
+  let input1 = [5, 3]
+  let input2 = [3, 5]
+  let r1 = merge_sort(input1)
+  let r2 = merge_sort(input2)
+  print "输入 [5,3] → " + str(r1) + ", 通过: " + str(arrays_equal(r1, [3, 5]))
+  print "输入 [3,5] → " + str(r2) + ", 通过: " + str(arrays_equal(r2, [3, 5]))
+  print ""
+end
+
+fn test_merge_sort_already_sorted() do
+  print "测试用例 4: 已排序列表"
+  let input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 10)
+  print ""
+end
+
+fn test_merge_sort_reverse() do
+  print "测试用例 5: 完全逆序"
+  let input = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(arrays_equal(result, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+  print ""
+end
+
+fn test_merge_sort_random() do
+  print "测试用例 6: 随机数据"
+  let input = [38, 27, 43, 3, 9, 82, 10, 65, 17, 54]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 10)
+  print ""
+end
+
+fn test_merge_sort_duplicates() do
+  print "测试用例 7: 大量重复元素"
+  let input = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 11)
+  print ""
+end
+
+fn test_merge_sort_all_same() do
+  print "测试用例 8: 所有元素相同"
+  let input = [7, 7, 7, 7, 7, 7]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(arrays_equal(result, [7, 7, 7, 7, 7, 7]))
+  print ""
+end
+
+fn test_merge_sort_negatives() do
+  print "测试用例 9: 含负数"
+  let input = [-5, 3, -8, 0, 7, -1, 4, -3, 6]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 9)
+  print ""
+end
+
+fn test_merge_sort_stability() do
+  print "测试用例 10: 稳定性验证 (相同元素保持相对顺序)"
+  let input = [5, 2, 8, 2, 5, 2]
+  let result = merge_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "期望: [2, 2, 2, 5, 5, 8]"
+  print "通过: " + str(arrays_equal(result, [2, 2, 2, 5, 5, 8]))
+  print ""
+end
+
+fn test_merge_sort_large() do
+  print "测试用例 11: 大规模数据 (20元素)"
+  let input = [72, 13, 55, 28, 91, 46, 38, 64, 17, 83, 29, 50, 7, 95, 42, 61, 34, 78, 11, 86]
+  let result = merge_sort(input)
+  print "输入长度: " + str(len(input))
+  print "输出长度: " + str(len(result))
+  print "最小值: " + str(result[0])
+  print "最大值: " + str(result[len(result) - 1])
+  print "有序: " + str(is_sorted(result))
+  print "通过: " + str(is_sorted(result) and len(result) == 20)
+  print ""
+end
+
+fn test_merge_function_directly() do
+  print "测试用例 12: 直接测试 merge 函数"
+  let l1 = [1, 3, 5, 7, 9]
+  let l2 = [2, 4, 6, 8, 10]
+  let result = merge(l1, l2)
+  print "有序左半: " + str(l1)
+  print "有序右半: " + str(l2)
+  print "合并结果: " + str(result)
+  print "通过: " + str(arrays_equal(result, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+  print ""
+end
+
+fn test_merge_unequal_lengths() do
+  print "测试用例 13: 合并不等长有序列表"
+  let l1 = [1, 5, 9]
+  let l2 = [2, 3, 4, 6, 7, 8, 10]
+  let result = merge(l1, l2)
+  print "左: " + str(l1)
+  print "右: " + str(l2)
+  print "合并: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 10)
+  print ""
+end
+
+fn test_sublist_function() do
+  print "测试用例 14: sublist 辅助函数"
+  let arr = [10, 20, 30, 40, 50, 60, 70]
+  let s1 = sublist(arr, 0, 2)
+  let s2 = sublist(arr, 3, 6)
+  let s3 = sublist(arr, 2, 4)
+  print "原数组: " + str(arr)
+  print "sublist(0,2): " + str(s1) + ", 通过: " + str(arrays_equal(s1, [10, 20, 30]))
+  print "sublist(3,6): " + str(s2) + ", 通过: " + str(arrays_equal(s2, [40, 50, 60, 70]))
+  print "sublist(2,4): " + str(s3) + ", 通过: " + str(arrays_equal(s3, [30, 40, 50]))
+  print ""
+end
+
+# ── 主函数 ─────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 归并排序 (Merge Sort) 测试套件 ==="
+  print "========================================\n"
+
+  test_merge_sort_empty()
+  test_merge_sort_single()
+  test_merge_sort_two_elements()
+  test_merge_sort_already_sorted()
+  test_merge_sort_reverse()
+  test_merge_sort_random()
+  test_merge_sort_duplicates()
+  test_merge_sort_all_same()
+  test_merge_sort_negatives()
+  test_merge_sort_stability()
+  test_merge_sort_large()
+  test_merge_function_directly()
+  test_merge_unequal_lengths()
+  test_sublist_function()
+
+  print "========================================\n"
+  print "所有归并排序测试用例执行完成！"
+  print "覆盖场景：空列表、单元素、逆序、随机、重复元素、负数、大规模数据、稳定性"
+  print "算法特点：分治递归，稳定排序，时间复杂度 O(n log n)，空间复杂度 O(n)"
+end

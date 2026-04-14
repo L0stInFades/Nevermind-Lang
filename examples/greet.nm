@@ -1,0 +1,9 @@
+# greet.nm — greeting utilities module
+
+fn hello(name: String) -> String do
+    "Hello, {name}!"
+end
+
+fn goodbye(name: String) -> String do
+    "Goodbye, {name}!"
+end

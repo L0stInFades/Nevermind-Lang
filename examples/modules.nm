@@ -1,0 +1,21 @@
+# modules.nm - demonstrates the Nevermind module system
+
+# Selective import: bring specific names into scope
+from "mathutils" import square, cube, factorial
+
+# Selective import from a second module
+from "greet" import hello, goodbye
+
+# Namespace import: use the module name as a prefix
+use "mathutils"
+
+fn main() do
+    # Selectively-imported names used directly
+    print(square(5))
+    print(cube(3))
+    print(factorial(6))
+
+    # Selectively-imported functions from greet.nm
+    print(hello("Nevermind"))
+    print(goodbye("Nevermind"))
+end

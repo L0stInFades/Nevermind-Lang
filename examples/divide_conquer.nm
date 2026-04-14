@@ -1,0 +1,295 @@
+# 分治算法 (Divide and Conquer) 测试用例
+# Nevermind 语言实现 - 多种经典分治算法
+
+# ── 1. 分治求最大/最小值 ───────────────────────────────────────────────────
+
+fn dc_max(arr: List[Int], low: Int, high: Int) -> Int do
+  if low == high do
+    return arr[low]
+  end
+  var mid = (low + high) / 2
+  var left_max = dc_max(arr, low, mid)
+  var right_max = dc_max(arr, mid + 1, high)
+  if left_max > right_max then left_max else right_max end
+end
+
+fn dc_min(arr: List[Int], low: Int, high: Int) -> Int do
+  if low == high do
+    return arr[low]
+  end
+  var mid = (low + high) / 2
+  var left_min = dc_min(arr, low, mid)
+  var right_min = dc_min(arr, mid + 1, high)
+  if left_min < right_min then left_min else right_min end
+end
+
+# 同时求最大值和最小值，返回 [min, max]
+fn dc_minmax(arr: List[Int], low: Int, high: Int) -> List[Int] do
+  if low == high do
+    return [arr[low], arr[low]]
+  end
+  if high - low == 1 do
+    if arr[low] <= arr[high] do
+      return [arr[low], arr[high]]
+    end
+    return [arr[high], arr[low]]
+  end
+  var mid = (low + high) / 2
+  var left_mm = dc_minmax(arr, low, mid)
+  var right_mm = dc_minmax(arr, mid + 1, high)
+  var res_min = if left_mm[0] < right_mm[0] then left_mm[0] else right_mm[0] end
+  var res_max = if left_mm[1] > right_mm[1] then left_mm[1] else right_mm[1] end
+  var mm = [res_min, res_max]
+  mm
+end
+
+# ── 2. 分治求和 ────────────────────────────────────────────────────────────
+
+fn dc_sum(arr: List[Int], low: Int, high: Int) -> Int do
+  if low == high do
+    return arr[low]
+  end
+  var mid = (low + high) / 2
+  dc_sum(arr, low, mid) + dc_sum(arr, mid + 1, high)
+end
+
+# ── 3. 快速幂 (分治法) ─────────────────────────────────────────────────────
+
+fn power(base: Int, exp: Int) -> Int do
+  if exp == 0 do
+    return 1
+  end
+  if exp == 1 do
+    return base
+  end
+  if exp % 2 == 0 do
+    var half = power(base, exp / 2)
+    return half * half
+  end
+  base * power(base, exp - 1)
+end
+
+# ── 4. 分治计数（统计满足条件的元素数量）────────────────────────────────
+
+fn dc_count_positive(arr: List[Int], low: Int, high: Int) -> Int do
+  if low == high do
+    return if arr[low] > 0 then 1 else 0 end
+  end
+  var mid = (low + high) / 2
+  dc_count_positive(arr, low, mid) + dc_count_positive(arr, mid + 1, high)
+end
+
+# ── 5. 分治求最大连续子数组 (Kadane 分治版) ──────────────────────────────
+
+fn dc_max_crossing(arr: List[Int], low: Int, mid: Int, high: Int) -> Int do
+  var left_sum = arr[mid]
+  var sum = arr[mid]
+  var i = mid - 1
+  while i >= low do
+    sum = sum + arr[i]
+    if sum > left_sum do
+      left_sum = sum
+    end
+    i = i - 1
+  end
+
+  var right_sum = arr[mid + 1]
+  sum = arr[mid + 1]
+  var j = mid + 2
+  while j <= high do
+    sum = sum + arr[j]
+    if sum > right_sum do
+      right_sum = sum
+    end
+    j = j + 1
+  end
+
+  left_sum + right_sum
+end
+
+fn dc_max_subarray(arr: List[Int], low: Int, high: Int) -> Int do
+  if low == high do
+    return arr[low]
+  end
+  var mid = (low + high) / 2
+  var left_max = dc_max_subarray(arr, low, mid)
+  var right_max = dc_max_subarray(arr, mid + 1, high)
+  var cross_max = dc_max_crossing(arr, low, mid, high)
+  var best = if left_max > right_max then left_max else right_max end
+  if cross_max > best then cross_max else best end
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_dc_max_basic() do
+  print "测试用例 1: 分治求最大值"
+  let arr = [3, 14, 1, 5, 92, 65, 35, 89, 79, 32]
+  let result = dc_max(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最大值: " + str(result)
+  print "通过: " + str(result == 92)
+  print ""
+end
+
+fn test_dc_min_basic() do
+  print "测试用例 2: 分治求最小值"
+  let arr = [45, 12, 78, 3, 56, 89, 21, 67, 34, 90]
+  let result = dc_min(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最小值: " + str(result)
+  print "通过: " + str(result == 3)
+  print ""
+end
+
+fn test_dc_single_element() do
+  print "测试用例 3: 单元素分治"
+  let arr = [42]
+  let mx = dc_max(arr, 0, 0)
+  let mn = dc_min(arr, 0, 0)
+  print "数组: " + str(arr)
+  print "最大值: " + str(mx) + ", 通过: " + str(mx == 42)
+  print "最小值: " + str(mn) + ", 通过: " + str(mn == 42)
+  print ""
+end
+
+fn test_dc_two_elements() do
+  print "测试用例 4: 两元素分治"
+  let arr = [7, 3]
+  let mx = dc_max(arr, 0, 1)
+  let mn = dc_min(arr, 0, 1)
+  print "数组: " + str(arr)
+  print "最大值: " + str(mx) + ", 通过: " + str(mx == 7)
+  print "最小值: " + str(mn) + ", 通过: " + str(mn == 3)
+  print ""
+end
+
+fn test_dc_minmax() do
+  print "测试用例 5: 分治同时求最大最小值"
+  let arr = [64, 25, 12, 22, 11, 90, 45, 67, 33]
+  let result = dc_minmax(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最小值: " + str(result[0]) + ", 通过: " + str(result[0] == 11)
+  print "最大值: " + str(result[1]) + ", 通过: " + str(result[1] == 90)
+  print ""
+end
+
+fn test_dc_sum() do
+  print "测试用例 6: 分治求和"
+  let arr = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  let result = dc_sum(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "总和: " + str(result)
+  print "通过: " + str(result == 55)
+  print ""
+end
+
+fn test_dc_sum_with_negatives() do
+  print "测试用例 7: 含负数的分治求和"
+  let arr = [-5, 3, -2, 8, -1, 4, -6, 7]
+  let result = dc_sum(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "总和: " + str(result)
+  print "通过: " + str(result == 8)
+  print ""
+end
+
+fn test_power_basic() do
+  print "测试用例 8: 快速幂基本测试"
+  let r1 = power(2, 10)
+  let r2 = power(3, 5)
+  let r3 = power(5, 0)
+  let r4 = power(7, 1)
+  print "2^10 = " + str(r1) + ", 通过: " + str(r1 == 1024)
+  print "3^5  = " + str(r2) + ", 通过: " + str(r2 == 243)
+  print "5^0  = " + str(r3) + ", 通过: " + str(r3 == 1)
+  print "7^1  = " + str(r4) + ", 通过: " + str(r4 == 7)
+  print ""
+end
+
+fn test_power_large() do
+  print "测试用例 9: 快速幂大指数测试"
+  let r1 = power(2, 16)
+  let r2 = power(2, 20)
+  let r3 = power(10, 6)
+  print "2^16  = " + str(r1) + ", 通过: " + str(r1 == 65536)
+  print "2^20  = " + str(r2) + ", 通过: " + str(r2 == 1048576)
+  print "10^6  = " + str(r3) + ", 通过: " + str(r3 == 1000000)
+  print ""
+end
+
+fn test_dc_count_positive() do
+  print "测试用例 10: 分治统计正数个数"
+  let arr = [-3, 5, -1, 8, 0, -2, 7, 4, -5, 6]
+  let result = dc_count_positive(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "正数个数: " + str(result)
+  print "通过: " + str(result == 5)
+  print ""
+end
+
+fn test_dc_max_subarray_basic() do
+  print "测试用例 11: 分治最大子数组 (基本)"
+  let arr = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+  let result = dc_max_subarray(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最大子数组和: " + str(result)
+  print "通过 (期望6): " + str(result == 6)
+  print ""
+end
+
+fn test_dc_max_subarray_all_positive() do
+  print "测试用例 12: 分治最大子数组 (全正数)"
+  let arr = [1, 2, 3, 4, 5]
+  let result = dc_max_subarray(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最大子数组和: " + str(result)
+  print "通过: " + str(result == 15)
+  print ""
+end
+
+fn test_dc_max_subarray_all_negative() do
+  print "测试用例 13: 分治最大子数组 (全负数)"
+  let arr = [-5, -3, -8, -1, -4]
+  let result = dc_max_subarray(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最大子数组和: " + str(result)
+  print "通过 (期望-1): " + str(result == -1)
+  print ""
+end
+
+fn test_dc_negative_max_min() do
+  print "测试用例 14: 全负数的最大最小值"
+  let arr = [-10, -3, -7, -1, -8, -5]
+  let mx = dc_max(arr, 0, len(arr) - 1)
+  let mn = dc_min(arr, 0, len(arr) - 1)
+  print "数组: " + str(arr)
+  print "最大值: " + str(mx) + ", 通过: " + str(mx == -1)
+  print "最小值: " + str(mn) + ", 通过: " + str(mn == -10)
+  print ""
+end
+
+# ── 主函数 ─────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 分治算法 (Divide and Conquer) 测试套件 ==="
+  print "===============================================\n"
+
+  test_dc_max_basic()
+  test_dc_min_basic()
+  test_dc_single_element()
+  test_dc_two_elements()
+  test_dc_minmax()
+  test_dc_sum()
+  test_dc_sum_with_negatives()
+  test_power_basic()
+  test_power_large()
+  test_dc_count_positive()
+  test_dc_max_subarray_basic()
+  test_dc_max_subarray_all_positive()
+  test_dc_max_subarray_all_negative()
+  test_dc_negative_max_min()
+
+  print "===============================================\n"
+  print "所有分治算法测试用例执行完成！"
+  print "涵盖算法: 分治最大/最小值、同时求极值、分治求和、快速幂、分治统计、最大子数组"
+end

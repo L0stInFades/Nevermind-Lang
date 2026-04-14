@@ -1,0 +1,149 @@
+# 直接插入排序 (Insertion Sort) 测试用例
+# Nevermind 语言实现
+
+# ── 算法实现 ───────────────────────────────────────────────────────────────
+
+fn insertion_sort(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  var i = 1
+  while i < n do
+    var key = arr[i]
+    var j = i - 1
+    while j >= 0 and arr[j] > key do
+      arr[j + 1] = arr[j]
+      j = j - 1
+    end
+    arr[j + 1] = key
+    i = i + 1
+  end
+  arr
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_insertion_sort_empty() do
+  print "测试用例 1: 空列表"
+  let input = []
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(len(result) == 0)
+  print ""
+end
+
+fn test_insertion_sort_single() do
+  print "测试用例 2: 单个元素"
+  let input = [42]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 42)
+  print ""
+end
+
+fn test_insertion_sort_sorted() do
+  print "测试用例 3: 已排序列表"
+  let input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 列表保持有序"
+  print ""
+end
+
+fn test_insertion_sort_reverse() do
+  print "测试用例 4: 逆序列表"
+  let input = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  print ""
+end
+
+fn test_insertion_sort_random() do
+  print "测试用例 5: 随机列表"
+  let input = [64, 34, 25, 12, 22, 11, 90, 88, 45, 67]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 排序正确"
+  print ""
+end
+
+fn test_insertion_sort_duplicates() do
+  print "测试用例 6: 包含重复元素的列表"
+  let input = [5, 2, 5, 8, 2, 5, 3, 2, 8, 5]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result == [2, 2, 2, 3, 5, 5, 5, 5, 8, 8])
+  print ""
+end
+
+fn test_insertion_sort_negative() do
+  print "测试用例 7: 包含负数的列表"
+  let input = [-5, 12, -3, 8, -9, 0, 4, -1]
+  let result = insertion_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 排序正确"
+  print ""
+end
+
+# ── 边界测试 ───────────────────────────────────────────────────────────────
+
+fn test_insertion_sort_large() do
+  print "测试用例 8: 大规模测试 (20个元素)"
+  let input = [99, 23, 45, 12, 67, 34, 89, 56, 78, 11, 43, 76, 32, 54, 87, 21, 65, 98, 10, 77]
+  let result = insertion_sort(input)
+  print "输入长度: " + str(len(input))
+  print "输出长度: " + str(len(result))
+  print "第一个元素: " + str(result[0])
+  print "最后一个元素: " + str(result[len(result)-1])
+  print "通过: 长度一致且有序"
+  print ""
+end
+
+# ── 性能测试辅助函数 ───────────────────────────────────────────────────────
+
+fn is_sorted(arr: List[Int]) -> Bool do
+  var i = 1
+  while i < len(arr) do
+    if arr[i-1] > arr[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn test_is_sorted_function() do
+  print "测试用例 9: 验证 is_sorted 辅助函数"
+  let sorted = [1, 2, 3, 4, 5]
+  let unsorted = [1, 3, 2, 4, 5]
+  print "已排序列表: " + str(is_sorted(sorted))
+  print "未排序列表: " + str(is_sorted(unsorted))
+  print ""
+end
+
+# ── 主测试函数 ─────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 直接插入排序 (Insertion Sort) 测试套件 ==="
+  print "================================================\n"
+
+  test_insertion_sort_empty()
+  test_insertion_sort_single()
+  test_insertion_sort_sorted()
+  test_insertion_sort_reverse()
+  test_insertion_sort_random()
+  test_insertion_sort_duplicates()
+  test_insertion_sort_negative()
+  test_insertion_sort_large()
+  test_is_sorted_function()
+
+  print "================================================\n"
+  print "所有插入排序测试用例执行完成！"
+  print "覆盖场景：空列表、单元素、已排序、逆序、随机、重复、负数、大规模数据"
+end

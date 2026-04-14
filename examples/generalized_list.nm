@@ -1,0 +1,387 @@
+# 广义表 (Generalized List) 测试用例
+# Nevermind 语言实现
+#
+# ── 编码规则 ──────────────────────────────────────────────────────────────
+# 广义表以平展整数数组 List[Int] 编码，规则如下：
+#   正整数 N      = 原子（atom），值为 N
+#   0             = 子表开始（相当于左括号 '('）
+#   -1            = 子表结束（相当于右括号 ')'）
+#   整个数组本身  = 最外层广义表（不用额外的 0/-1 包裹）
+#
+# 示例对照：
+#   ()                → []
+#   (1)               → [1]
+#   (1, 2, 3)         → [1, 2, 3]
+#   (1, (2, 3), 4)    → [1, 0, 2, 3, -1, 4]
+#   ((1, 2), (3, 4))  → [0, 1, 2, -1, 0, 3, 4, -1]
+#   (1,(2,(3,4)),5)   → [1, 0, 2, 0, 3, 4, -1, -1, 5]
+# ─────────────────────────────────────────────────────────────────────────
+
+# ── 核心操作 ─────────────────────────────────────────────────────────────
+
+# 求广义表的长度（顶层元素个数：原子和子表各计为 1）
+fn gl_length(gl: List[Int]) -> Int do
+  var count = 0
+  var depth = 0
+  var i = 0
+  var n = len(gl)
+  while i < n do
+    if gl[i] == 0 do
+      if depth == 0 do
+        count = count + 1
+      end
+      depth = depth + 1
+    end
+    if gl[i] == -1 do
+      depth = depth - 1
+    end
+    if gl[i] > 0 do
+      if depth == 0 do
+        count = count + 1
+      end
+    end
+    i = i + 1
+  end
+  count
+end
+
+# 求广义表的深度（嵌套层数）
+# 空表深度为 0，纯原子表深度为 1，每增一层嵌套加 1
+fn gl_depth(gl: List[Int]) -> Int do
+  if len(gl) == 0 do
+    return 0
+  end
+  var max_depth = 0
+  var current_depth = 0
+  var i = 0
+  var n = len(gl)
+  while i < n do
+    if gl[i] == 0 do
+      current_depth = current_depth + 1
+      if current_depth > max_depth do
+        max_depth = current_depth
+      end
+    end
+    if gl[i] == -1 do
+      current_depth = current_depth - 1
+    end
+    i = i + 1
+  end
+  max_depth + 1
+end
+
+# 判断表头是否为原子
+fn gl_head_is_atom(gl: List[Int]) -> Bool do
+  len(gl) > 0 and gl[0] > 0
+end
+
+# 取表头原子的值（仅在 gl_head_is_atom 为 true 时调用）
+fn gl_head_atom(gl: List[Int]) -> Int do
+  gl[0]
+end
+
+# 取表尾（去掉表头后的剩余广义表）
+fn gl_tail(gl: List[Int]) -> List[Int] do
+  var n = len(gl)
+  if n == 0 do
+    return []
+  end
+  var skip = 0
+  if gl[0] > 0 do
+    skip = 1
+  end
+  if gl[0] == 0 do
+    var depth = 1
+    var i = 1
+    while i < n and depth > 0 do
+      if gl[i] == 0 do
+        depth = depth + 1
+      end
+      if gl[i] == -1 do
+        depth = depth - 1
+      end
+      i = i + 1
+    end
+    skip = i
+  end
+  var result = []
+  var j = skip
+  while j < n do
+    result = result + [gl[j]]
+    j = j + 1
+  end
+  result
+end
+
+# 判断两个广义表是否相等（编码逐元素比较）
+fn gl_equal(gl1: List[Int], gl2: List[Int]) -> Bool do
+  if len(gl1) != len(gl2) do
+    return false
+  end
+  var i = 0
+  while i < len(gl1) do
+    if gl1[i] != gl2[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+# 复制广义表（平展整数数组，浅拷贝即深拷贝）
+fn gl_copy(gl: List[Int]) -> List[Int] do
+  var result = []
+  var i = 0
+  while i < len(gl) do
+    result = result + [gl[i]]
+    i = i + 1
+  end
+  result
+end
+
+# 将广义表转换为可读字符串，如 (1, (2, 3), 4)
+fn gl_to_str(gl: List[Int]) -> String do
+  var result = "("
+  var prev_was_open = 1
+  var i = 0
+  var n = len(gl)
+  while i < n do
+    if gl[i] == 0 do
+      if prev_was_open == 0 do
+        result = result + ", "
+      end
+      result = result + "("
+      prev_was_open = 1
+    end
+    if gl[i] == -1 do
+      result = result + ")"
+      prev_was_open = 0
+    end
+    if gl[i] > 0 do
+      if prev_was_open == 0 do
+        result = result + ", "
+      end
+      result = result + str(gl[i])
+      prev_was_open = 0
+    end
+    i = i + 1
+  end
+  result + ")"
+end
+
+# 统计广义表中所有原子（不含子表标记）的个数
+fn gl_atom_count(gl: List[Int]) -> Int do
+  var count = 0
+  var i = 0
+  while i < len(gl) do
+    if gl[i] > 0 do
+      count = count + 1
+    end
+    i = i + 1
+  end
+  count
+end
+
+# ── 测试辅助 ─────────────────────────────────────────────────────────────
+
+fn print_gl_info(name: String, gl: List[Int]) do
+  print name + " = " + gl_to_str(gl)
+  print "  编码: " + str(gl)
+  print "  长度: " + str(gl_length(gl))
+  print "  深度: " + str(gl_depth(gl))
+  print "  原子数: " + str(gl_atom_count(gl))
+  print "  表头是原子: " + str(gl_head_is_atom(gl))
+  print ""
+end
+
+# ── 测试用例 ─────────────────────────────────────────────────────────────
+
+fn test_gl_empty() do
+  print "测试用例 1: 空广义表"
+  let gl = []
+  print "广义表: " + gl_to_str(gl)
+  print "长度: " + str(gl_length(gl)) + ", 通过: " + str(gl_length(gl) == 0)
+  print "深度: " + str(gl_depth(gl)) + ", 通过: " + str(gl_depth(gl) == 0)
+  print ""
+end
+
+fn test_gl_single_atom() do
+  print "测试用例 2: 单原子广义表 (5)"
+  let gl = [5]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 1)
+  print "深度通过: " + str(gl_depth(gl) == 1)
+  print "表头是原子: " + str(gl_head_is_atom(gl))
+  print "表头值: " + str(gl_head_atom(gl)) + ", 通过: " + str(gl_head_atom(gl) == 5)
+  print ""
+end
+
+fn test_gl_pure_atoms() do
+  print "测试用例 3: 纯原子广义表 (1, 2, 3, 4, 5)"
+  let gl = [1, 2, 3, 4, 5]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 5)
+  print "深度通过: " + str(gl_depth(gl) == 1)
+  print ""
+end
+
+fn test_gl_nested_one_level() do
+  print "测试用例 4: 一层嵌套 (1, (2, 3), 4)"
+  let gl = [1, 0, 2, 3, -1, 4]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 3)
+  print "深度通过: " + str(gl_depth(gl) == 2)
+  print "表头是原子: " + str(gl_head_is_atom(gl))
+  print "表头值: " + str(gl_head_atom(gl)) + ", 通过: " + str(gl_head_atom(gl) == 1)
+  print ""
+end
+
+fn test_gl_sublist_head() do
+  print "测试用例 5: 子表开头 ((1, 2), (3, 4))"
+  let gl = [0, 1, 2, -1, 0, 3, 4, -1]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 2)
+  print "深度通过: " + str(gl_depth(gl) == 2)
+  print "表头是原子: " + str(gl_head_is_atom(gl))
+  print ""
+end
+
+fn test_gl_deep_nesting() do
+  print "测试用例 6: 深层嵌套 (1, (2, (3, 4)), 5)"
+  let gl = [1, 0, 2, 0, 3, 4, -1, -1, 5]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 3)
+  print "深度通过: " + str(gl_depth(gl) == 3)
+  print ""
+end
+
+fn test_gl_very_deep() do
+  print "测试用例 7: 极深嵌套 (1, (2, (3, (4, 5))))"
+  let gl = [1, 0, 2, 0, 3, 0, 4, 5, -1, -1, -1]
+  print_gl_info("gl", gl)
+  print "长度通过: " + str(gl_length(gl) == 2)
+  print "深度通过: " + str(gl_depth(gl) == 4)
+  print ""
+end
+
+fn test_gl_tail_atom_head() do
+  print "测试用例 8: 取表尾 - 表头为原子 (1, (2, 3), 4)"
+  let gl = [1, 0, 2, 3, -1, 4]
+  let tail = gl_tail(gl)
+  print "原表:   " + gl_to_str(gl)
+  print "表尾:   " + gl_to_str(tail)
+  print "期望:   ((2, 3), 4)"
+  print "通过:   " + str(gl_equal(tail, [0, 2, 3, -1, 4]))
+  print ""
+end
+
+fn test_gl_tail_sublist_head() do
+  print "测试用例 9: 取表尾 - 表头为子表 ((1, 2), (3, 4))"
+  let gl = [0, 1, 2, -1, 0, 3, 4, -1]
+  let tail = gl_tail(gl)
+  print "原表:   " + gl_to_str(gl)
+  print "表尾:   " + gl_to_str(tail)
+  print "期望:   ((3, 4))"
+  print "通过:   " + str(gl_equal(tail, [0, 3, 4, -1]))
+  print ""
+end
+
+fn test_gl_tail_single() do
+  print "测试用例 10: 取表尾 - 单元素表 (7)"
+  let gl = [7]
+  let tail = gl_tail(gl)
+  print "原表:   " + gl_to_str(gl)
+  print "表尾:   " + gl_to_str(tail)
+  print "通过 (空表): " + str(gl_equal(tail, []))
+  print ""
+end
+
+fn test_gl_tail_chain() do
+  print "测试用例 11: 链式取表尾"
+  let gl = [10, 20, 30, 40, 50]
+  let t1 = gl_tail(gl)
+  let t2 = gl_tail(t1)
+  let t3 = gl_tail(t2)
+  print "原表:     " + gl_to_str(gl)
+  print "取尾1次:  " + gl_to_str(t1) + ", 通过: " + str(gl_equal(t1, [20, 30, 40, 50]))
+  print "取尾2次:  " + gl_to_str(t2) + ", 通过: " + str(gl_equal(t2, [30, 40, 50]))
+  print "取尾3次:  " + gl_to_str(t3) + ", 通过: " + str(gl_equal(t3, [40, 50]))
+  print ""
+end
+
+fn test_gl_equal() do
+  print "测试用例 12: 广义表判等"
+  let gl1 = [1, 0, 2, 3, -1, 4]
+  let gl2 = [1, 0, 2, 3, -1, 4]
+  let gl3 = [1, 0, 2, 4, -1, 4]
+  let gl4 = [1, 2, 3]
+  print "gl1 = " + gl_to_str(gl1)
+  print "gl2 = " + gl_to_str(gl2)
+  print "gl3 = " + gl_to_str(gl3)
+  print "gl4 = " + gl_to_str(gl4)
+  print "gl1 == gl2: " + str(gl_equal(gl1, gl2)) + ", 通过: " + str(gl_equal(gl1, gl2) == true)
+  print "gl1 == gl3: " + str(gl_equal(gl1, gl3)) + ", 通过: " + str(gl_equal(gl1, gl3) == false)
+  print "gl1 == gl4: " + str(gl_equal(gl1, gl4)) + ", 通过: " + str(gl_equal(gl1, gl4) == false)
+  print ""
+end
+
+fn test_gl_copy() do
+  print "测试用例 13: 广义表复制"
+  let src = [1, 0, 2, 3, -1, 4]
+  let copied = gl_copy(src)
+  print "原表: " + gl_to_str(src)
+  print "副本: " + gl_to_str(copied)
+  print "相等: " + str(gl_equal(src, copied)) + ", 通过: " + str(gl_equal(src, copied))
+  print ""
+end
+
+fn test_gl_atom_count() do
+  print "测试用例 14: 统计原子个数"
+  let gl1 = [1, 2, 3]
+  let gl2 = [1, 0, 2, 3, -1, 4]
+  let gl3 = [1, 0, 2, 0, 3, 4, -1, -1, 5]
+  print gl_to_str(gl1) + " 原子数: " + str(gl_atom_count(gl1)) + ", 通过: " + str(gl_atom_count(gl1) == 3)
+  print gl_to_str(gl2) + " 原子数: " + str(gl_atom_count(gl2)) + ", 通过: " + str(gl_atom_count(gl2) == 4)
+  print gl_to_str(gl3) + " 原子数: " + str(gl_atom_count(gl3)) + ", 通过: " + str(gl_atom_count(gl3) == 5)
+  print ""
+end
+
+fn test_gl_comprehensive() do
+  print "测试用例 15: 综合信息展示"
+  print "── 教材经典广义表 ──"
+  print_gl_info("LS1 = ()", [])
+  print_gl_info("LS2 = (a)", [1])
+  print_gl_info("LS3 = (a, b, c)", [1, 2, 3])
+  print_gl_info("LS4 = (a, (b, c), d)", [1, 0, 2, 3, -1, 4])
+  print_gl_info("LS5 = ((a,b),(c,d))", [0, 1, 2, -1, 0, 3, 4, -1])
+  print_gl_info("LS6 = (a,(b,(c,d)),e)", [1, 0, 2, 0, 3, 4, -1, -1, 5])
+end
+
+# ── 主函数 ─────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 广义表 (Generalized List) 测试套件 ==="
+  print "编码: 正整数=原子, 0=子表开始, -1=子表结束"
+  print "==========================================\n"
+
+  test_gl_empty()
+  test_gl_single_atom()
+  test_gl_pure_atoms()
+  test_gl_nested_one_level()
+  test_gl_sublist_head()
+  test_gl_deep_nesting()
+  test_gl_very_deep()
+  test_gl_tail_atom_head()
+  test_gl_tail_sublist_head()
+  test_gl_tail_single()
+  test_gl_tail_chain()
+  test_gl_equal()
+  test_gl_copy()
+  test_gl_atom_count()
+  test_gl_comprehensive()
+
+  print "==========================================\n"
+  print "所有广义表测试用例执行完成！"
+  print "实现操作: 求长度、求深度、取表头、取表尾、判等、复制、原子计数、格式化输出"
+  print "数据结构特点: 递归定义，可嵌套任意层，统一用平展整数数组编码"
+end

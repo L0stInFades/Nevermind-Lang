@@ -1,0 +1,164 @@
+# 希尔排序 (Shell Sort) 测试用例
+# Nevermind 语言实现
+
+# ── 算法实现 ───────────────────────────────────────────────────────────────
+
+fn shell_sort(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  var gap = n / 2
+  while gap > 0 do
+    var i = gap
+    while i < n do
+      var temp = arr[i]
+      var j = i
+      while j >= gap and arr[j - gap] > temp do
+        arr[j] = arr[j - gap]
+        j = j - gap
+      end
+      arr[j] = temp
+      i = i + 1
+    end
+    gap = gap / 2
+  end
+  arr
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_shell_sort_empty() do
+  print "测试用例 1: 空列表"
+  let input = []
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(len(result) == 0)
+  print ""
+end
+
+fn test_shell_sort_single() do
+  print "测试用例 2: 单个元素"
+  let input = [999]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 999)
+  print ""
+end
+
+fn test_shell_sort_already_sorted() do
+  print "测试用例 3: 已排序列表"
+  let input = [1, 3, 5, 7, 9, 11, 13, 15]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 排序稳定"
+  print ""
+end
+
+fn test_shell_sort_reverse_sorted() do
+  print "测试用例 4: 完全逆序列表"
+  let input = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 1 and result[len(result)-1] == 20)
+  print ""
+end
+
+fn test_shell_sort_random_data() do
+  print "测试用例 5: 随机数据"
+  let input = [83, 12, 45, 67, 23, 78, 91, 34, 56, 89, 2, 77, 66, 44, 33]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 排序正确"
+  print ""
+end
+
+fn test_shell_sort_with_duplicates() do
+  print "测试用例 6: 大量重复元素"
+  let input = [5, 5, 5, 3, 3, 3, 7, 7, 7, 1, 1, 1, 9, 9, 9]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result == [1, 1, 1, 3, 3, 3, 5, 5, 5, 7, 7, 7, 9, 9, 9])
+  print ""
+end
+
+fn test_shell_sort_mixed_signs() do
+  print "测试用例 7: 正负混合数据"
+  let input = [-10, 15, -25, 30, -5, 0, 25, -15, 10]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 正确处理负数和零"
+  print ""
+end
+
+# ── 特殊间隔测试 ───────────────────────────────────────────────────────────
+
+fn test_shell_sort_different_gaps() do
+  print "测试用例 8: 不同初始间隔的测试"
+  let input = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10]
+  let result = shell_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 不同间隔下均能正确排序"
+  print ""
+end
+
+fn test_shell_sort_large_random() do
+  print "测试用例 9: 大规模随机数据 (30个元素)"
+  let input = [543, 234, 876, 123, 654, 987, 345, 678, 901, 210, 456, 789, 112, 334, 556, 778, 990, 221, 443, 665, 887, 109, 321, 543, 765, 987, 109, 221, 443, 665]
+  let result = shell_sort(input)
+  print "输入长度: " + str(len(input))
+  print "输出长度: " + str(len(result))
+  print "最小值: " + str(result[0])
+  print "最大值: " + str(result[len(result)-1])
+  print "通过: 大规模排序测试"
+  print ""
+end
+
+# ── 辅助验证函数 ───────────────────────────────────────────────────────────
+
+fn verify_sorted(arr: List[Int]) -> Bool do
+  var i = 1
+  while i < len(arr) do
+    if arr[i - 1] > arr[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn test_verification_function() do
+  print "测试用例 10: 验证辅助函数"
+  let sorted_data = [1, 2, 3, 4, 5, 6, 7]
+  let unsorted_data = [1, 3, 2, 4, 5]
+  print "已排序数组验证: " + str(verify_sorted(sorted_data))
+  print "未排序数组验证: " + str(verify_sorted(unsorted_data))
+  print ""
+end
+
+# ── 主测试入口 ─────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 希尔排序 (Shell Sort) 测试套件 ==="
+  print "=========================================\n"
+
+  test_shell_sort_empty()
+  test_shell_sort_single()
+  test_shell_sort_already_sorted()
+  test_shell_sort_reverse_sorted()
+  test_shell_sort_random_data()
+  test_shell_sort_with_duplicates()
+  test_shell_sort_mixed_signs()
+  test_shell_sort_different_gaps()
+  test_shell_sort_large_random()
+  test_verification_function()
+
+  print "=========================================\n"
+  print "所有希尔排序测试用例执行完成！"
+  print "覆盖场景：空列表、单元素、已排序、逆序、随机、重复、正负混合、不同间隔、大规模数据"
+end

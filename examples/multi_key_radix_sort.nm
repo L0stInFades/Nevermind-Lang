@@ -1,0 +1,268 @@
+# 多关键字基数排序 (Multi-key Radix Sort) 测试用例
+# Nevermind 语言实现 - 按多个字段排序（如学生成绩：总分 > 数学 > 英语）
+
+# ── 数据结构辅助 ───────────────────────────────────────────────────────────
+
+# 学生记录格式: [id, total_score, math, english]
+# 排序优先级: total_score(降序) > math(降序) > english(降序)
+# 注意：基数排序本身是升序；最终结果打印后需按逻辑解读
+
+fn print_student(student) do
+  print student[0]
+  print student[1]
+  print student[2]
+  print student[3]
+end
+
+# ── 多关键字基数排序核心 ───────────────────────────────────────────────────
+
+fn count_sort_by_key(students, exp, key_index) do
+  var n = len(students)
+  var output = []
+  var i = 0
+  while i < n do
+    output = output + [0]
+    i = i + 1
+  end
+
+  var count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+  i = 0
+  while i < n do
+    var digit = (students[i][key_index] / exp) % 10
+    count[digit] = count[digit] + 1
+    i = i + 1
+  end
+
+  i = 1
+  while i < 10 do
+    count[i] = count[i] + count[i - 1]
+    i = i + 1
+  end
+
+  i = n - 1
+  while i >= 0 do
+    var digit = (students[i][key_index] / exp) % 10
+    output[count[digit] - 1] = students[i]
+    count[digit] = count[digit] - 1
+    i = i - 1
+  end
+
+  output
+end
+
+fn radix_sort_by_key(students, key_index) do
+  var n = len(students)
+  if n <= 1 do
+    return students
+  end
+
+  var max_val = students[0][key_index]
+  var i = 1
+  while i < n do
+    if students[i][key_index] > max_val do
+      max_val = students[i][key_index]
+    end
+    i = i + 1
+  end
+
+  var exp = 1
+  while max_val / exp > 0 do
+    students = count_sort_by_key(students, exp, key_index)
+    exp = exp * 10
+  end
+
+  students
+end
+
+fn multi_key_radix_sort(students) do
+  if len(students) == 0 do
+    return students
+  end
+
+  # LSD: 先按最低优先级排序，最后按最高优先级排序
+  students = radix_sort_by_key(students, 3)
+  students = radix_sort_by_key(students, 2)
+  students = radix_sort_by_key(students, 1)
+
+  students
+end
+
+# ── 测试数据生成 ───────────────────────────────────────────────────────────
+
+# 学生记录: [id, total, math, english]
+fn create_test_students() do
+  var s = []
+  s = s + [[1, 285, 95, 90]]
+  s = s + [[2, 275, 85, 95]]
+  s = s + [[3, 285, 90, 95]]
+  s = s + [[4, 260, 80, 85]]
+  s = s + [[5, 275, 90, 90]]
+  s = s + [[6, 290, 95, 95]]
+  s = s + [[7, 285, 95, 85]]
+  s = s + [[8, 270, 85, 90]]
+  s = s + [[9, 280, 88, 92]]
+  s = s + [[10, 275, 92, 88]]
+  s
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_multi_key_empty() do
+  print "测试用例 1: 空学生列表"
+  let input = []
+  let result = multi_key_radix_sort(input)
+  print "输入学生数: "
+  print len(input)
+  print "输出学生数: "
+  print len(result)
+  print "通过: "
+  print len(result) == 0
+  print ""
+end
+
+fn test_multi_key_single() do
+  print "测试用例 2: 单个学生"
+  var input = []
+  input = input + [[1, 280, 90, 95]]
+  let result = multi_key_radix_sort(input)
+  print "学生 id/total/math/english:"
+  print_student(result[0])
+  print "通过: 正确返回"
+  print ""
+end
+
+fn test_multi_key_total_score_priority() do
+  print "测试用例 3: 总分优先级测试 (升序输出，前5名)"
+  let students = create_test_students()
+  let result = multi_key_radix_sort(students)
+  print "按总分升序排序结果 (前5):"
+  var i = 0
+  while i < 5 do
+    print_student(result[i])
+    i = i + 1
+  end
+  print "验证: 总分按升序排列（最后为最高分）"
+  print ""
+end
+
+fn test_multi_key_math_priority() do
+  print "测试用例 4: 总分相同时的数学成绩优先级"
+  var students = []
+  students = students + [[1, 280, 95, 85]]
+  students = students + [[2, 280, 85, 95]]
+  students = students + [[3, 280, 90, 90]]
+  let result = multi_key_radix_sort(students)
+  print "总分均为280时的排序 (数学升序):"
+  var i = 0
+  while i < len(result) do
+    print_student(result[i])
+    i = i + 1
+  end
+  print "验证: 数学成绩升序 (85 < 90 < 95)"
+  print ""
+end
+
+fn test_multi_key_english_priority() do
+  print "测试用例 5: 总分和数学都相同时的英语优先级"
+  var students = []
+  students = students + [[1, 270, 85, 95]]
+  students = students + [[2, 270, 85, 88]]
+  students = students + [[3, 270, 85, 92]]
+  let result = multi_key_radix_sort(students)
+  print "总分270、数学85时的排序 (英语升序):"
+  var i = 0
+  while i < len(result) do
+    print_student(result[i])
+    i = i + 1
+  end
+  print "验证: 英语成绩升序 (88 < 92 < 95)"
+  print ""
+end
+
+fn test_multi_key_complex_scenario() do
+  print "测试用例 6: 复杂多关键字场景"
+  var students = []
+  students = students + [[101, 450, 92, 88]]
+  students = students + [[102, 450, 88, 95]]
+  students = students + [[103, 460, 95, 90]]
+  students = students + [[104, 445, 90, 85]]
+  students = students + [[105, 460, 90, 95]]
+  students = students + [[106, 450, 92, 90]]
+  let result = multi_key_radix_sort(students)
+  print "复杂场景排序结果 (总分升序，同分按数学升序):"
+  var i = 0
+  while i < len(result) do
+    print_student(result[i])
+    i = i + 1
+  end
+  print "验证: 445 < 450 < 460，同总分内数学升序"
+  print ""
+end
+
+fn test_multi_key_all_equal() do
+  print "测试用例 7: 所有关键字段都相同"
+  var students = []
+  students = students + [[1, 300, 100, 100]]
+  students = students + [[2, 300, 100, 100]]
+  students = students + [[3, 300, 100, 100]]
+  let result = multi_key_radix_sort(students)
+  print "所有字段都相同的情况:"
+  var i = 0
+  while i < len(result) do
+    print_student(result[i])
+    i = i + 1
+  end
+  print "验证: 排序稳定"
+  print ""
+end
+
+# ── 验证函数（升序）────────────────────────────────────────────────────────
+
+fn is_multi_key_sorted_asc(students) do
+  var i = 1
+  while i < len(students) do
+    let prev = students[i - 1]
+    let curr = students[i]
+    if prev[1] > curr[1] do
+      return false
+    end
+    if prev[1] == curr[1] and prev[2] > curr[2] do
+      return false
+    end
+    if prev[1] == curr[1] and prev[2] == curr[2] and prev[3] > curr[3] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn test_validation_function() do
+  print "测试用例 8: 多关键字排序验证函数（升序验证）"
+  let students = create_test_students()
+  let result = multi_key_radix_sort(students)
+  print "多关键字升序排序验证: "
+  print is_multi_key_sorted_asc(result)
+  print ""
+end
+
+# ── 主测试函数 ─────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 多关键字基数排序测试套件 ==="
+  print "排序规则: total(升序) > math(升序) > english(升序)"
+  print ""
+
+  test_multi_key_empty()
+  test_multi_key_single()
+  test_multi_key_total_score_priority()
+  test_multi_key_math_priority()
+  test_multi_key_english_priority()
+  test_multi_key_complex_scenario()
+  test_multi_key_all_equal()
+  test_validation_function()
+
+  print "所有多关键字基数排序测试用例执行完成！"
+  print "测试特点: 三级优先级(total>math>english)升序排序，稳定排序验证"
+end

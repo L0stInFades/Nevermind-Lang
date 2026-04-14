@@ -54,7 +54,7 @@ impl PythonGenerator {
             BinOp::Add => "+",
             BinOp::Sub => "-",
             BinOp::Mul => "*",
-            BinOp::Div => "/",
+            BinOp::Div => "//",
             BinOp::Mod => "%",
             BinOp::Pow => "**",
             BinOp::Eq => "==",

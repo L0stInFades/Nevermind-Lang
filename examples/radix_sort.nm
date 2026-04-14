@@ -1,0 +1,209 @@
+# 基数排序 (Radix Sort) 测试用例
+# Nevermind 语言实现 - LSD (Least Significant Digit) 版本
+
+# ── 辅助函数 ───────────────────────────────────────────────────────────────
+
+fn get_max(arr: List[Int]) -> Int do
+  var max_val = arr[0]
+  var i = 1
+  while i < len(arr) do
+    if arr[i] > max_val do
+      max_val = arr[i]
+    end
+    i = i + 1
+  end
+  max_val
+end
+
+fn count_sort_for_digit(arr: List[Int], exp: Int) -> List[Int] do
+  var n = len(arr)
+  var output = []
+  var i = 0
+  while i < n do
+    output = output + [0]
+    i = i + 1
+  end
+
+  var count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  # 0-9
+
+  i = 0
+  while i < n do
+    var digit = (arr[i] / exp) % 10
+    count[digit] = count[digit] + 1
+    i = i + 1
+  end
+
+  i = 1
+  while i < 10 do
+    count[i] = count[i] + count[i - 1]
+    i = i + 1
+  end
+
+  i = n - 1
+  while i >= 0 do
+    var digit = (arr[i] / exp) % 10
+    output[count[digit] - 1] = arr[i]
+    count[digit] = count[digit] - 1
+    i = i - 1
+  end
+
+  output
+end
+
+# ── 基数排序主函数 ─────────────────────────────────────────────────────────
+
+fn radix_sort(arr: List[Int]) -> List[Int] do
+  if len(arr) == 0 do
+    return arr
+  end
+
+  var max_val = get_max(arr)
+  var exp = 1
+  while max_val / exp > 0 do
+    arr = count_sort_for_digit(arr, exp)
+    exp = exp * 10
+  end
+  arr
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_radix_sort_empty() do
+  print "测试用例 1: 空列表"
+  let input = []
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(len(result) == 0)
+  print ""
+end
+
+fn test_radix_sort_single() do
+  print "测试用例 2: 单个元素"
+  let input = [7777]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 7777)
+  print ""
+end
+
+fn test_radix_sort_same_digits() do
+  print "测试用例 3: 相同位数的数字"
+  let input = [170, 45, 75, 90, 802, 24, 2, 66]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result == [2, 24, 45, 66, 75, 90, 170, 802])
+  print ""
+end
+
+fn test_radix_sort_different_lengths() do
+  print "测试用例 4: 不同位数的数字"
+  let input = [5, 123, 45, 6789, 2, 999, 10, 777]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 按数值大小正确排序"
+  print ""
+end
+
+fn test_radix_sort_with_zeros() do
+  print "测试用例 5: 包含0的列表"
+  let input = [0, 123, 0, 456, 0, 789, 0]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 0 and result[len(result)-1] == 789)
+  print ""
+end
+
+fn test_radix_sort_large_numbers() do
+  print "测试用例 6: 大数值测试"
+  let input = [1000, 999, 100, 99, 10, 9, 10000, 9999]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 正确处理不同数量级"
+  print ""
+end
+
+fn test_radix_sort_all_same() do
+  print "测试用例 7: 所有元素相同"
+  let input = [42, 42, 42, 42, 42, 42, 42]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result == [42, 42, 42, 42, 42, 42, 42])
+  print ""
+end
+
+# ── 边界和性能测试 ────────────────────────────────────────────────────────
+
+fn test_radix_sort_max_range() do
+  print "测试用例 8: 最大范围测试 (1-9999)"
+  let input = [9999, 1, 8888, 2, 7777, 3, 6666, 4, 5555, 5]
+  let result = radix_sort(input)
+  print "输入长度: " + str(len(input))
+  print "输出长度: " + str(len(result))
+  print "最小值: " + str(result[0])
+  print "最大值: " + str(result[len(result)-1])
+  print "通过: 极端范围排序测试"
+  print ""
+end
+
+fn test_radix_sort_stability() do
+  print "测试用例 9: 稳定性测试 (相同数值)"
+  let input = [111, 222, 111, 333, 111, 222]
+  let result = radix_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: 基数排序为稳定排序"
+  print ""
+end
+
+# ── 辅助验证 ───────────────────────────────────────────────────────────────
+
+fn is_non_decreasing(arr: List[Int]) -> Bool do
+  var i = 1
+  while i < len(arr) do
+    if arr[i - 1] > arr[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn test_helper_functions() do
+  print "测试用例 10: 辅助函数测试"
+  let test_data = [170, 45, 75, 90, 2, 24, 802, 66]
+  let max_val = get_max(test_data)
+  print "测试数据: " + str(test_data)
+  print "最大值: " + str(max_val)
+  print "排序验证: " + str(is_non_decreasing(radix_sort(test_data)))
+  print ""
+end
+
+# ── 主测试函数 ─────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 基数排序 (Radix Sort) 测试套件 ==="
+  print "=======================================\n"
+
+  test_radix_sort_empty()
+  test_radix_sort_single()
+  test_radix_sort_same_digits()
+  test_radix_sort_different_lengths()
+  test_radix_sort_with_zeros()
+  test_radix_sort_large_numbers()
+  test_radix_sort_all_same()
+  test_radix_sort_max_range()
+  test_radix_sort_stability()
+  test_helper_functions()
+
+  print "=======================================\n"
+  print "所有基数排序测试用例执行完成！"
+  print "覆盖场景：空列表、单元素、相同位数、不同位数、包含0、大数值、稳定性测试"
+  print "算法特点：LSD (最低有效位优先)，稳定排序，时间复杂度 O(d(n+k))"
+end

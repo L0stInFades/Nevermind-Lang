@@ -1,0 +1,323 @@
+# 快速排序 (Quick Sort) 测试用例
+# Nevermind 语言实现 - 函数式分区版本
+
+# ── 分区辅助函数 ───────────────────────────────────────────────────────────
+
+fn filter_less(arr: List[Int], pivot: Int) -> List[Int] do
+  var result = []
+  var i = 0
+  while i < len(arr) do
+    if arr[i] < pivot do
+      result = result + [arr[i]]
+    end
+    i = i + 1
+  end
+  result
+end
+
+fn filter_equal(arr: List[Int], pivot: Int) -> List[Int] do
+  var result = []
+  var i = 0
+  while i < len(arr) do
+    if arr[i] == pivot do
+      result = result + [arr[i]]
+    end
+    i = i + 1
+  end
+  result
+end
+
+fn filter_greater(arr: List[Int], pivot: Int) -> List[Int] do
+  var result = []
+  var i = 0
+  while i < len(arr) do
+    if arr[i] > pivot do
+      result = result + [arr[i]]
+    end
+    i = i + 1
+  end
+  result
+end
+
+# ── 快速排序主函数 ─────────────────────────────────────────────────────────
+
+fn quick_sort(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  if n <= 1 do
+    return arr
+  end
+  var pivot = arr[n / 2]
+  var less = filter_less(arr, pivot)
+  var equal = filter_equal(arr, pivot)
+  var greater = filter_greater(arr, pivot)
+  quick_sort(less) + equal + quick_sort(greater)
+end
+
+# 以第一个元素为基准
+fn quick_sort_first_pivot(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  if n <= 1 do
+    return arr
+  end
+  var pivot = arr[0]
+  var rest_less = filter_less(arr, pivot)
+  var rest_equal = filter_equal(arr, pivot)
+  var rest_greater = filter_greater(arr, pivot)
+  quick_sort_first_pivot(rest_less) + rest_equal + quick_sort_first_pivot(rest_greater)
+end
+
+# 以最后一个元素为基准
+fn quick_sort_last_pivot(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  if n <= 1 do
+    return arr
+  end
+  var pivot = arr[n - 1]
+  var less = filter_less(arr, pivot)
+  var equal = filter_equal(arr, pivot)
+  var greater = filter_greater(arr, pivot)
+  quick_sort_last_pivot(less) + equal + quick_sort_last_pivot(greater)
+end
+
+# ── 原地分区版本 (in-place partition) ─────────────────────────────────────
+
+fn partition(arr: List[Int], low: Int, high: Int) -> Int do
+  var pivot = arr[high]
+  var i = low - 1
+  var j = low
+  while j < high do
+    if arr[j] <= pivot do
+      i = i + 1
+      var tmp = arr[i]
+      arr[i] = arr[j]
+      arr[j] = tmp
+    end
+    j = j + 1
+  end
+  var tmp2 = arr[i + 1]
+  arr[i + 1] = arr[high]
+  arr[high] = tmp2
+  i + 1
+end
+
+fn quick_sort_inplace(arr: List[Int], low: Int, high: Int) do
+  if low < high do
+    var pi = partition(arr, low, high)
+    quick_sort_inplace(arr, low, pi - 1)
+    quick_sort_inplace(arr, pi + 1, high)
+  end
+end
+
+# ── 验证辅助 ───────────────────────────────────────────────────────────────
+
+fn is_sorted(arr: List[Int]) -> Bool do
+  var i = 1
+  while i < len(arr) do
+    if arr[i - 1] > arr[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+fn arrays_equal(a: List[Int], b: List[Int]) -> Bool do
+  if len(a) != len(b) do
+    return false
+  end
+  var i = 0
+  while i < len(a) do
+    if a[i] != b[i] do
+      return false
+    end
+    i = i + 1
+  end
+  true
+end
+
+# ── 测试用例 ───────────────────────────────────────────────────────────────
+
+fn test_qs_empty() do
+  print "测试用例 1: 空列表"
+  let input = []
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(len(result) == 0)
+  print ""
+end
+
+fn test_qs_single() do
+  print "测试用例 2: 单个元素"
+  let input = [42]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(result[0] == 42)
+  print ""
+end
+
+fn test_qs_two_elements() do
+  print "测试用例 3: 两个元素"
+  let r1 = quick_sort([7, 3])
+  let r2 = quick_sort([3, 7])
+  print "[7,3] → " + str(r1) + ", 通过: " + str(arrays_equal(r1, [3, 7]))
+  print "[3,7] → " + str(r2) + ", 通过: " + str(arrays_equal(r2, [3, 7]))
+  print ""
+end
+
+fn test_qs_already_sorted() do
+  print "测试用例 4: 已排序列表"
+  let input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 10)
+  print ""
+end
+
+fn test_qs_reverse() do
+  print "测试用例 5: 完全逆序"
+  let input = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(arrays_equal(result, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]))
+  print ""
+end
+
+fn test_qs_random() do
+  print "测试用例 6: 随机数据"
+  let input = [64, 34, 25, 12, 22, 11, 90, 88, 45, 67, 3, 77]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 12)
+  print ""
+end
+
+fn test_qs_duplicates() do
+  print "测试用例 7: 大量重复元素"
+  let input = [5, 3, 5, 7, 3, 5, 1, 7, 3]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 9)
+  print ""
+end
+
+fn test_qs_all_same() do
+  print "测试用例 8: 所有元素相同"
+  let input = [4, 4, 4, 4, 4]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(arrays_equal(result, [4, 4, 4, 4, 4]))
+  print ""
+end
+
+fn test_qs_negatives() do
+  print "测试用例 9: 含负数"
+  let input = [-3, 7, -1, 5, 0, -8, 4, -2, 6]
+  let result = quick_sort(input)
+  print "输入: " + str(input)
+  print "输出: " + str(result)
+  print "通过: " + str(is_sorted(result) and len(result) == 9)
+  print ""
+end
+
+fn test_qs_first_pivot() do
+  print "测试用例 10: 以第一个元素为基准"
+  let input = [3, 6, 8, 10, 1, 2, 1]
+  let result = quick_sort_first_pivot(input)
+  print "输入: " + str(input)
+  print "输出 (首元素基准): " + str(result)
+  print "通过: " + str(is_sorted(result))
+  print ""
+end
+
+fn test_qs_last_pivot() do
+  print "测试用例 11: 以最后一个元素为基准"
+  let input = [3, 6, 8, 10, 1, 2, 1]
+  let result = quick_sort_last_pivot(input)
+  print "输入: " + str(input)
+  print "输出 (末元素基准): " + str(result)
+  print "通过: " + str(is_sorted(result))
+  print ""
+end
+
+fn test_qs_inplace() do
+  print "测试用例 12: 原地快速排序"
+  var arr = [64, 25, 12, 22, 11, 90, 88, 45, 67, 3]
+  print "输入: " + str(arr)
+  quick_sort_inplace(arr, 0, len(arr) - 1)
+  print "输出: " + str(arr)
+  print "通过: " + str(is_sorted(arr))
+  print ""
+end
+
+fn test_qs_inplace_already_sorted() do
+  print "测试用例 13: 原地排序 - 已排序输入"
+  var arr = [1, 2, 3, 4, 5, 6, 7, 8]
+  print "输入: " + str(arr)
+  quick_sort_inplace(arr, 0, len(arr) - 1)
+  print "输出: " + str(arr)
+  print "通过: " + str(is_sorted(arr))
+  print ""
+end
+
+fn test_qs_large() do
+  print "测试用例 14: 大规模数据 (20元素)"
+  let input = [57, 13, 89, 24, 71, 36, 48, 92, 15, 63, 8, 75, 41, 29, 84, 52, 17, 96, 33, 68]
+  let result = quick_sort(input)
+  print "输入长度: " + str(len(input))
+  print "输出最小: " + str(result[0])
+  print "输出最大: " + str(result[len(result) - 1])
+  print "有序: " + str(is_sorted(result))
+  print "通过: " + str(is_sorted(result) and len(result) == 20)
+  print ""
+end
+
+fn test_filter_functions() do
+  print "测试用例 15: 分区辅助函数验证"
+  let arr = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+  let pivot = 5
+  let less = filter_less(arr, pivot)
+  let equal = filter_equal(arr, pivot)
+  let greater = filter_greater(arr, pivot)
+  print "原数组: " + str(arr) + ", 基准: " + str(pivot)
+  print "小于: " + str(less)
+  print "等于: " + str(equal)
+  print "大于: " + str(greater)
+  print "总数: " + str(len(less) + len(equal) + len(greater))
+  print "通过: " + str(len(less) + len(equal) + len(greater) == len(arr))
+  print ""
+end
+
+# ── 主函数 ─────────────────────────────────────────────────────────────────
+
+fn main() do
+  print "=== 快速排序 (Quick Sort) 测试套件 ==="
+  print "========================================\n"
+
+  test_qs_empty()
+  test_qs_single()
+  test_qs_two_elements()
+  test_qs_already_sorted()
+  test_qs_reverse()
+  test_qs_random()
+  test_qs_duplicates()
+  test_qs_all_same()
+  test_qs_negatives()
+  test_qs_first_pivot()
+  test_qs_last_pivot()
+  test_qs_inplace()
+  test_qs_inplace_already_sorted()
+  test_qs_large()
+  test_filter_functions()
+
+  print "========================================\n"
+  print "所有快速排序测试用例执行完成！"
+  print "覆盖场景：空列表、单元素、逆序、随机、重复、负数、不同基准策略、原地排序"
+  print "算法特点：分治递归，平均时间复杂度 O(n log n)，最坏 O(n^2)"
+end

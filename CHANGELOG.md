@@ -5,6 +5,71 @@ All notable changes to the Nevermind programming language will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-04-15
+
+### Added
+
+#### Algorithm & Data Structure Examples (this session)
+- **`binary_search.nm`** — 折半查找 (Binary Search)
+  - Iterative + recursive variants, 14 tests
+  - Covers: empty array, single element, first/middle/last, not found (below/above/between), negatives, large array, all-same
+- **`divide_conquer.nm`** — 分治算法 (Divide and Conquer)
+  - `dc_max` / `dc_min` / `dc_minmax` — extremum via divide and conquer
+  - `dc_sum` — divide-and-conquer summation
+  - `power` — fast exponentiation (binary exponentiation)
+  - `dc_count_positive` — D&C counting
+  - `dc_max_subarray` — maximum subarray with cross-midpoint merge
+  - 14 tests, all passing
+- **`merge_sort.nm`** — 归并排序 (Merge Sort)
+  - `sublist` helper (manual slicing via while loop), `merge` (using `take_left` flag), `merge_sort` (recursive top-down)
+  - 14 tests including stability verification
+- **`quick_sort.nm`** — 快速排序 (Quick Sort)
+  - Functional variant (filter-based partitioning + list concatenation)
+  - Three pivot strategies: middle, first-element, last-element
+  - In-place variant: `partition` + `quick_sort_inplace`
+  - 15 tests
+- **`generalized_list.nm`** — 广义表 (Generalized List)
+  - Flat integer encoding: positive int = atom, `0` = open sublist, `-1` = close sublist
+  - Operations: `gl_length`, `gl_depth`, `gl_head_is_atom`, `gl_head_atom`, `gl_tail`, `gl_equal`, `gl_copy`, `gl_atom_count`, `gl_to_str`
+  - 15 tests including depth-4 nesting, chain tail, equality, copy
+  - Avoids heterogeneous-list type restriction by encoding structure as `List[Int]`
+
+#### Earlier Algorithm Examples (undocumented in v0.4.0)
+- **`bubble_sort.nm`** — 冒泡排序, in-place using IndexAssign
+- **`insertion_sort.nm`** — 直接插入排序 (10 tests)
+- **`shell_sort.nm`** — 希尔排序 (10 tests)
+- **`radix_sort.nm`** — 基数排序 LSD (10 tests)
+- **`multi_key_radix_sort.nm`** — 多关键字基数排序 (8 tests, 3-level priority)
+
+#### Earlier Data Structure Examples (undocumented in v0.4.0)
+- **`linked_list.nm`** — nil/cons linked list with `car`, `cdr`, `list_append`, `list_concat`, `list_map`
+- **`seq_list.nm`** — 顺序表 sequential list with insert/delete/search
+- **`seq_stack.nm`** — 顺序栈 array-backed stack with push/pop/peek
+- **`circ_queue.nm`** — 循环队列 circular queue with modular wrap-around
+- **`sparse_poly.nm`** — 稀疏多项式 sparse polynomial with `poly_add`, `poly_eval`
+- **`sparse_matrix.nm`** — 稀疏矩阵 sparse matrix with transpose and matrix-vector multiply
+
+#### Module Examples (undocumented)
+- **`greet.nm`**, **`mathutils.nm`**, **`modules.nm`** — module system demonstration
+
+### Fixed
+- **Integer division** — `/` now correctly generates Python floor division `//` (ensures int/int → int semantics)
+- **`IndexAssign`** (`arr[i] = v`) — added to MIR `MirStmt`, `lowering.rs`, and Python codegen; enables in-place mutation of list elements in all sorting algorithms
+- **While loop parser** — fixed a double-`end` consumption bug that caused `while` bodies to be parsed incorrectly
+- **Match codegen** — fixed incorrect Python `match`/`case` generation
+- **`print` with keyword arguments** — fixed generated Python output
+- **REPL multi-line tracking** — fixed continuation detection for `do...end` blocks
+- **For-loop lowering** — corrected variable binding in generated Python
+- **Type inference** — improved inference for several edge cases
+
+### Language Gotchas Documented
+- Variables must **not** start with `not`, `or`, `and` — the lexer greedily matches these as operator keywords (e.g., `not_found` → token `not` + identifier `_found`)
+- A list literal `[...]` appearing on its own line immediately after an `if...then...else...end` expression is parsed as postfix indexing of that expression; work around by assigning to a variable first: `var tmp = [a, b]` then `tmp`
+- String type annotation is `String`, not `Str`
+- `else` in `do`-form (`if cond do ... end else do ... end end`) requires an extra trailing `end`; prefer expression-form `if cond then a else b end` for simple branches
+
+---
+
 ## [0.4.0] - 2026-02-08
 
 ### Added
