@@ -1,0 +1,28 @@
+# Bubble Sort
+
+fn bubble_sort(arr: List[Int]) -> List[Int] do
+  var n = len(arr)
+  var i = 0
+  while i < n do
+    var j = 0
+    while j < n - i - 1 do
+      if arr[j] > arr[j + 1] do
+        var temp = arr[j]
+        arr[j] = arr[j + 1]
+        arr[j + 1] = temp
+      end
+      j = j + 1
+    end
+    i = i + 1
+  end
+  arr
+end
+
+fn main() do
+  let data = [64, 34, 25, 12, 22, 11, 90]
+  print "Before:"
+  print data
+  let sorted = bubble_sort(data)
+  print "After:"
+  print sorted
+end

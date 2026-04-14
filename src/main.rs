@@ -122,8 +122,18 @@ fn compile(
         return Ok(());
     }
 
-    // Name resolution
-    let mut resolver = nevermind_name_resolver::NameResolver::new();
+    // Resolve the base directory for this source file.
+    let base_dir = input
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    // Compile any local .nm modules that this file imports (transitive).
+    // Each imported module is compiled to a .py file in the same directory
+    // so Python can find it at runtime.
+    compile_module_deps(&statements, &base_dir)?;
+    let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
     let name_scope = match resolver.resolve(&statements) {
         Ok(scope) => scope,
         Err(errors) => {
@@ -376,6 +386,104 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Recursively compile all local `.nm` module dependencies referenced by
+/// `stmts`.  For each `from "mod" import …` or `use "mod"` where `mod.nm`
+/// exists inside `base_dir`, the module is compiled to a `.py` file alongside
+/// it so that Python can `import` it at runtime.
+///
+/// `visited` prevents re-compiling (and infinite loops on circular imports).
+fn compile_module_deps(
+    stmts: &[nevermind_ast::Stmt],
+    base_dir: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut visited = std::collections::HashSet::new();
+    compile_module_deps_inner(stmts, base_dir, &mut visited)
+}
+
+fn compile_module_deps_inner(
+    stmts: &[nevermind_ast::Stmt],
+    base_dir: &std::path::Path,
+    visited: &mut std::collections::HashSet<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for stmt in stmts {
+        let module = match stmt {
+            nevermind_ast::Stmt::Import { module, .. } => module,
+            _ => continue,
+        };
+
+        if visited.contains(module.as_str()) {
+            continue;
+        }
+
+        // Build the source path: "math/utils" -> base_dir/math/utils.nm
+        let source_path: std::path::PathBuf = module
+            .split('/')
+            .fold(base_dir.to_path_buf(), |p, seg| p.join(seg))
+            .with_extension("nm");
+
+        if !source_path.exists() {
+            // Not a local module — Python stdlib or external package.
+            continue;
+        }
+
+        // Mark before recursing to guard against cycles.
+        visited.insert(module.clone());
+
+        let source = fs::read_to_string(&source_path)?;
+
+        // Parse the module to discover its own dependencies.
+        let mut lexer = nevermind_lexer::Lexer::new(&source);
+        let tokens = lexer.tokenize()?;
+        let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+        let sub_stmts = parser.parse()?;
+
+        // Compile transitive dependencies first (depth-first).
+        let sub_base = source_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| base_dir.to_path_buf());
+        compile_module_deps_inner(&sub_stmts, &sub_base, visited)?;
+
+        // Now compile this module to Python.
+        let python = compile_source_silent_with_base(&source, Some(sub_base.clone()))?;
+
+        // Output path mirrors the source path: .nm → .py
+        let out_path = source_path.with_extension("py");
+        fs::write(&out_path, python)?;
+    }
+    Ok(())
+}
+
+/// Like `compile_source_silent` but accepts an optional base directory for
+/// resolving imports inside the compiled source.
+fn compile_source_silent_with_base(
+    source: &str,
+    base_dir: Option<std::path::PathBuf>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut lexer = nevermind_lexer::Lexer::new(source);
+    let tokens = lexer.tokenize()?;
+
+    let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+    let statements = parser.parse()?;
+
+    let mut resolver = match base_dir {
+        Some(dir) => nevermind_name_resolver::NameResolver::with_base_dir(dir),
+        None => nevermind_name_resolver::NameResolver::new(),
+    };
+    if let Err(errors) = resolver.resolve(&statements) {
+        let msgs: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
+        return Err(msgs.join("; ").into());
+    }
+
+    let mut checker = nevermind_type_checker::TypeChecker::new();
+    checker.check(&statements)?;
+
+    let mir_program = nevermind_mir::lower_program(&statements)?;
+    let python_code = nevermind_codegen::generate(&mir_program)?;
+
+    Ok(python_code)
+}
+
 /// Compile source code silently, returning the generated Python code.
 fn compile_source_silent(source: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Lex
@@ -595,7 +703,12 @@ fn check(input: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Parsed {} statements", statements.len());
 
     // Name resolution
-    let mut resolver = nevermind_name_resolver::NameResolver::new();
+    let base_dir = input
+        .canonicalize()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
     let name_scope = match resolver.resolve(&statements) {
         Ok(scope) => scope,
         Err(errors) => {

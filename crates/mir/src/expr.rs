@@ -187,6 +187,14 @@ pub enum MirExprStmt {
         id: NodeId,
     },
 
+    /// Index assignment: arr[index] = value
+    IndexAssign {
+        array: String,
+        index: MirExpr,
+        value: MirExpr,
+        id: NodeId,
+    },
+
     /// Expression statement
     Expr(MirExpr),
 
@@ -235,6 +243,7 @@ impl MirExprStmt {
         match self {
             MirExprStmt::Let { id, .. } => *id,
             MirExprStmt::Assign { id, .. } => *id,
+            MirExprStmt::IndexAssign { id, .. } => *id,
             MirExprStmt::Expr(expr) => expr.get_id(),
             MirExprStmt::Return { id, .. } => *id,
             MirExprStmt::If { id, .. } => *id,

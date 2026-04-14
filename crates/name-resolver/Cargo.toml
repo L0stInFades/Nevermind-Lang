@@ -7,4 +7,6 @@ description = "Name resolution for Nevermind"
 [dependencies]
 nevermind-common = { path = "../common" }
 nevermind-ast = { path = "../ast" }
+nevermind-lexer = { path = "../lexer" }
+nevermind-parser = { path = "../parser" }
 thiserror = "1.0"

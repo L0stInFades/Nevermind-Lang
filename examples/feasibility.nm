@@ -1,0 +1,59 @@
+# 线性数据结构可行性验证
+# 验证五个关键模式，每种模式对应一种结构的核心操作
+
+# 原地修改辅助函数（验证列表按引用传递）
+fn in_place_modify(arr, pos, val) do
+  arr[pos] = val
+end
+
+fn main() do
+  print "=== 线性数据结构可行性验证 ==="
+
+  # ── 1. arr[arr[i]+k] = v  ──────────────────────────────────────────────────
+  # 顺序栈 push 核心：s[s[1]+2] = x
+  print ""
+  print "1. 嵌套下标赋值 arr[arr[i]+k] = v"
+  let a = [2, 0, 0, 0, 0, 0]
+  a[a[0] + 1] = 99
+  print a
+
+  # ── 2. (x+1) % n  ──────────────────────────────────────────────────────────
+  # 循环队列 enqueue/dequeue 核心：tail = (tail+1) % cap
+  print ""
+  print "2. 取模回绕 (x+1) % n"
+  var tail = 5
+  var cap = 6
+  var next_tail = (tail + 1) % cap
+  print next_tail
+
+  # ── 3. while i >= 0 递减循环  ───────────────────────────────────────────────
+  # 顺序表 insert 核心：从末尾向前移动元素
+  print ""
+  print "3. 递减循环 while i >= 0"
+  var i = 3
+  while i >= 0 do
+    print i
+    i = i - 1
+  end
+
+  # ── 4. a[i+1] = a[i] 元素右移  ─────────────────────────────────────────────
+  # 顺序表 insert 核心：整体右移腾出插入位
+  print ""
+  print "4. 元素右移 a[i+1] = a[i]"
+  let b = [10, 20, 30, 0, 0]
+  var j = 2
+  while j >= 0 do
+    b[j + 1] = b[j]
+    j = j - 1
+  end
+  b[0] = 5
+  print b
+
+  # ── 5. 函数内原地修改  ──────────────────────────────────────────────────────
+  # 所有结构的基础：push/pop/enqueue 等在函数内直接修改传入数组
+  print ""
+  print "5. 函数内原地修改"
+  let c = [0, 0, 0]
+  in_place_modify(c, 1, 42)
+  print c
+end

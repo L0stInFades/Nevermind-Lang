@@ -94,6 +94,12 @@ impl TypeChecker {
                     Type::Var(crate::types::TypeVarRef::new(var.id()))
                 };
 
+                // Snapshot free vars BEFORE pre-declaring the function so that
+                // the function's own type variables are not treated as "free in
+                // the environment" during generalization (which would prevent them
+                // from being quantified and make every function monomorphic).
+                let free_vars_before = self.env.free_vars();
+
                 // Pre-declare function with its type (enables recursion)
                 // Use insert_or_update to allow shadowing of built-in functions
                 let func_type = Type::Function(
@@ -118,9 +124,9 @@ impl TypeChecker {
                 // Exit the function scope
                 self.env.exit_scope()?;
 
-                // Generalize and add to environment (overwrite preliminary)
-                let free_vars = self.env.free_vars();
-                let scheme = TypeScheme::generalize(func_type, &free_vars);
+                // Generalize using the pre-snapshot free vars so that the
+                // function's own type variables get properly quantified.
+                let scheme = TypeScheme::generalize(func_type, &free_vars_before);
                 self.env.insert_or_update(name.clone(), scheme);
 
                 Ok(Type::Unit)
@@ -263,8 +269,36 @@ impl TypeChecker {
                 self.infer_expression(expr)
             }
 
-            Stmt::Import { .. } => {
-                // TODO: Handle imports
+            Stmt::Import { module, symbols, .. } => {
+                // Register each imported name with a maximally-polymorphic type
+                // scheme (∀a. a).  This lets the type checker accept any usage
+                // of the name; the Python runtime enforces the actual types.
+                let register = |env: &mut TypeEnvironment, ctx: &mut TypeContext, name: &str| {
+                    let var = ctx.fresh_var();
+                    let scheme = crate::ty::TypeScheme::new(
+                        vec![var.clone()],
+                        Type::Var(crate::types::TypeVarRef::new(var.id())),
+                    );
+                    env.insert_or_update(name.to_string(), scheme);
+                };
+
+                match symbols {
+                    Some(syms) => {
+                        for sym_name in syms {
+                            register(&mut self.env, &mut self.ctx, sym_name);
+                        }
+                    }
+                    None => {
+                        // `use "module"` — register the last path segment as
+                        // the namespace name (e.g. `use "http/server"` → `server`).
+                        let namespace = module
+                            .split('/')
+                            .next_back()
+                            .unwrap_or(module.as_str());
+                        register(&mut self.env, &mut self.ctx, namespace);
+                    }
+                }
+
                 Ok(Type::Unit)
             }
 
@@ -522,8 +556,15 @@ impl TypeChecker {
                 let array_ty = self.infer_expression(array)?;
                 let _index_ty = self.infer_expression(index)?;
 
-                // TODO: Check that array is a list type and return element type
-                Ok(array_ty)
+                // Return the element type: if the array is a known List(T) return T,
+                // otherwise produce a fresh type variable (array type is still unknown).
+                match array_ty {
+                    Type::List(elem_ty) => Ok(*elem_ty),
+                    _ => {
+                        let var = self.ctx.fresh_var();
+                        Ok(Type::Var(crate::types::TypeVarRef::new(var.id())))
+                    }
+                }
             }
 
             Expr::Assign { target, value, .. } => {

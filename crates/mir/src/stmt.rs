@@ -71,6 +71,15 @@ pub enum MirStmt {
         arms: Vec<MirMatchArm>,
         id: NodeId,
     },
+
+    /// Import statement — `from "module" import sym1, sym2` or `use "module"`
+    Import {
+        /// Module path (e.g. `"math/utils"`)
+        module: String,
+        /// Symbols to import; `None` means namespace import (`use "module"`)
+        symbols: Option<Vec<String>>,
+        id: NodeId,
+    },
 }
 
 impl MirStmt {
@@ -87,6 +96,7 @@ impl MirStmt {
             MirStmt::Break { id } => *id,
             MirStmt::Continue { id } => *id,
             MirStmt::Match { id, .. } => *id,
+            MirStmt::Import { id, .. } => *id,
         }
     }
 }

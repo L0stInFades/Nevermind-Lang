@@ -156,7 +156,22 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             })
         }
 
-        _ => Err(LoweringError::UnsupportedNode(format!("{:?}", stmt))),
+        Stmt::Import { module, symbols, .. } => {
+            Ok(MirStmt::Import {
+                module: module.clone(),
+                symbols: symbols.clone(),
+                id: fresh_node_id(),
+            })
+        }
+
+        // Type aliases and class declarations don't produce runtime code.
+        Stmt::TypeAlias { .. } | Stmt::Class { .. } => {
+            Ok(MirStmt::Expr(MirExpr::Literal {
+                value: Literal::Null,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
     }
 }
 
@@ -216,14 +231,21 @@ fn lower_function_body(body: &Expr) -> Result<MirBlock> {
     }
 }
 
-/// Check if an expression is a call to a void function (like print)
+/// Check if an expression should be treated as a pure statement (no return value).
+/// This includes void built-in calls and all assignment expressions.
 fn is_void_call(expr: &Expr) -> bool {
-    if let Expr::Call { callee, .. } = expr {
-        if let Expr::Variable { name, .. } = callee.as_ref() {
-            return matches!(name.as_str(), "print" | "println");
+    match expr {
+        Expr::Call { callee, .. } => {
+            if let Expr::Variable { name, .. } = callee.as_ref() {
+                matches!(name.as_str(), "print" | "println")
+            } else {
+                false
+            }
         }
+        // Assignments produce no meaningful return value; treat as statements.
+        Expr::Assign { .. } => true,
+        _ => false,
     }
-    false
 }
 
 /// Lower a vector of AST statements to MIR statements
@@ -476,6 +498,23 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
                     ty: Type::Unit,
                     id: fresh_node_id(),
                 })
+            } else if let Expr::Index { array, index, .. } = target.as_ref() {
+                if let Expr::Variable { name, .. } = array.as_ref() {
+                    let mir_index = lower_expression(index)?;
+                    Ok(MirExpr::Block {
+                        statements: vec![MirExprStmt::IndexAssign {
+                            array: name.clone(),
+                            index: mir_index,
+                            value: mir_value,
+                            id: *id,
+                        }],
+                        expr: None,
+                        ty: Type::Unit,
+                        id: fresh_node_id(),
+                    })
+                } else {
+                    Ok(mir_value)
+                }
             } else {
                 Ok(mir_value)
             }
@@ -798,7 +837,14 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
             Ok(result.unwrap_or(MirExprStmt::Expr(mir_scrutinee)))
         }
 
-        _ => Err(LoweringError::UnsupportedNode(format!("{:?}", stmt))),
+        // Imports and declarations inside expression blocks are treated as no-ops.
+        Stmt::Import { .. } | Stmt::TypeAlias { .. } | Stmt::Class { .. } => {
+            Ok(MirExprStmt::Expr(MirExpr::Literal {
+                value: Literal::Null,
+                ty: Type::Unit,
+                id: fresh_node_id(),
+            }))
+        }
     }
 }
 

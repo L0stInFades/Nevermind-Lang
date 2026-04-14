@@ -1,0 +1,172 @@
+# 顺序表 (Sequential List / Array List)
+#
+# 存储布局：[cap, size, d0, d1, ..., d_{cap-1}]
+#   sl[0] = 容量 cap
+#   sl[1] = 当前元素个数 size
+#   sl[2+i] = 第 i 号位置的数据（0-indexed）
+#
+# get/set O(1)；insert/delete O(n)（需移动元素）。
+
+# ── 构造 ───────────────────────────────────────────────────────────────────────
+
+fn make_seqlist() do
+  # 容量 10，初始为空
+  [10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+# ── 基本谓词 ───────────────────────────────────────────────────────────────────
+
+fn seqlist_is_empty(sl) do
+  sl[1] == 0
+end
+
+fn seqlist_is_full(sl) do
+  sl[1] == sl[0]
+end
+
+fn seqlist_size(sl) do
+  sl[1]
+end
+
+# ── 随机访问 ───────────────────────────────────────────────────────────────────
+
+fn seqlist_get(sl, pos) do
+  sl[pos + 2]
+end
+
+fn seqlist_set(sl, pos, val) do
+  sl[pos + 2] = val
+end
+
+# ── 在末尾追加 ─────────────────────────────────────────────────────────────────
+
+fn seqlist_append(sl, x) do
+  if sl[1] < sl[0] do
+    sl[sl[1] + 2] = x
+    sl[1] = sl[1] + 1
+  end
+end
+
+# ── 在 pos 位置插入（0-indexed）─────────────────────────────────────────────────
+
+fn seqlist_insert(sl, pos, x) do
+  if sl[1] < sl[0] do
+    var i = sl[1] - 1
+    while i >= pos do
+      sl[i + 3] = sl[i + 2]
+      i = i - 1
+    end
+    sl[pos + 2] = x
+    sl[1] = sl[1] + 1
+  end
+end
+
+# ── 删除 pos 位置的元素，返回被删值 ────────────────────────────────────────────
+
+fn seqlist_delete(sl, pos) do
+  var val = sl[pos + 2]
+  var size = sl[1]
+  var i = pos
+  while i < size - 1 do
+    sl[i + 2] = sl[i + 3]
+    i = i + 1
+  end
+  sl[1] = sl[1] - 1
+  val
+end
+
+# ── 线性查找，返回首次出现的下标，未找到返回 -1 ────────────────────────────────
+
+fn seqlist_find(sl, val) do
+  var size = sl[1]
+  var i = 0
+  var result = -1
+  while i < size do
+    if sl[i + 2] == val do
+      if result == -1 do
+        result = i
+      end
+    end
+    i = i + 1
+  end
+  result
+end
+
+# ── 打印 ───────────────────────────────────────────────────────────────────────
+
+fn seqlist_print(sl) do
+  print "SeqList:"
+  var size = sl[1]
+  var i = 0
+  while i < size do
+    print sl[i + 2]
+    i = i + 1
+  end
+end
+
+# ── 演示 ───────────────────────────────────────────────────────────────────────
+
+fn main() do
+  let sl = make_seqlist()
+
+  print "=== 顺序表演示 ==="
+
+  print ""
+  print "-- 追加 10 20 30 40 50 --"
+  seqlist_append(sl, 10)
+  seqlist_append(sl, 20)
+  seqlist_append(sl, 30)
+  seqlist_append(sl, 40)
+  seqlist_append(sl, 50)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 在 pos=1 插入 15 --"
+  seqlist_insert(sl, 1, 15)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 在 pos=0 插入 5 --"
+  seqlist_insert(sl, 0, 5)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 在 pos=6 插入 35 --"
+  seqlist_insert(sl, 6, 35)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 删除 pos=0 的元素 --"
+  print seqlist_delete(sl, 0)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 删除 pos=3 的元素 --"
+  print seqlist_delete(sl, 3)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 随机访问 get(pos=2) --"
+  print seqlist_get(sl, 2)
+
+  print ""
+  print "-- 修改 set(pos=2, 99) --"
+  seqlist_set(sl, 2, 99)
+  seqlist_print(sl)
+
+  print ""
+  print "-- 查找 99 的下标 --"
+  print seqlist_find(sl, 99)
+
+  print ""
+  print "-- 查找不存在的值 888 --"
+  print seqlist_find(sl, 888)
+
+  print ""
+  print "size:"
+  print seqlist_size(sl)
+
+  print ""
+  print "is_empty:"
+  print seqlist_is_empty(sl)
+end

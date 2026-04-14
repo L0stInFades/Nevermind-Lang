@@ -1,0 +1,172 @@
+# Linked List in Nevermind
+#
+# Representation: each node is a two-element list [value, next].
+# The empty list (nil) is represented by `null`.
+#
+# cons(1, cons(2, cons(3, null)))
+#   => [1, [2, [3, null]]]
+
+# ── Core constructors & accessors ──────────────────────────────────────────
+
+fn cons(head, tail) do
+  [head, tail]
+end
+
+fn car(node) do
+  node[0]
+end
+
+fn cdr(node) do
+  node[1]
+end
+
+fn is_nil(node) do
+  node == null
+end
+
+# ── Iterative traversals ────────────────────────────────────────────────────
+
+fn list_length(node) do
+  var count = 0
+  var current = node
+  while not is_nil(current) do
+    count = count + 1
+    current = cdr(current)
+  end
+  count
+end
+
+fn list_sum(node) do
+  var total = 0
+  var current = node
+  while not is_nil(current) do
+    total = total + car(current)
+    current = cdr(current)
+  end
+  total
+end
+
+fn list_nth(node, n) do
+  var current = node
+  var i = 0
+  while i < n do
+    current = cdr(current)
+    i = i + 1
+  end
+  car(current)
+end
+
+fn list_contains(node, val) do
+  var current = node
+  var found = false
+  while not is_nil(current) do
+    if car(current) == val do
+      found = true
+    end
+    current = cdr(current)
+  end
+  found
+end
+
+# ── Recursive transformations ───────────────────────────────────────────────
+
+fn list_to_str(node) do
+  if is_nil(node) then "nil" else str(car(node)) + " -> " + list_to_str(cdr(node)) end
+end
+
+fn list_append(node, val) do
+  if is_nil(node) then cons(val, null) else cons(car(node), list_append(cdr(node), val)) end
+end
+
+fn list_concat(a, b) do
+  if is_nil(a) then b else cons(car(a), list_concat(cdr(a), b)) end
+end
+
+fn list_map(node, f) do
+  if is_nil(node) then null else cons(f(car(node)), list_map(cdr(node), f)) end
+end
+
+# ── Iterative reverse ───────────────────────────────────────────────────────
+
+fn list_reverse(node) do
+  var acc = null
+  var current = node
+  while not is_nil(current) do
+    acc = cons(car(current), acc)
+    current = cdr(current)
+  end
+  acc
+end
+
+# ── Builder from array ──────────────────────────────────────────────────────
+
+fn list_from_array(arr) do
+  var n = len(arr)
+  var result = null
+  var i = n - 1
+  while i >= 0 do
+    result = cons(arr[i], result)
+    i = i - 1
+  end
+  result
+end
+
+# ── Print helper ────────────────────────────────────────────────────────────
+
+fn list_print(node) do
+  print list_to_str(node)
+end
+
+# ── Demo ────────────────────────────────────────────────────────────────────
+
+fn main() do
+  let lst = cons(1, cons(2, cons(3, cons(4, cons(5, null)))))
+
+  print "=== Linked List Demo ==="
+
+  print ""
+  print "List:"
+  list_print(lst)
+
+  print ""
+  print "Length:"
+  print list_length(lst)
+
+  print ""
+  print "Sum:"
+  print list_sum(lst)
+
+  print ""
+  print "Element at index 2:"
+  print list_nth(lst, 2)
+
+  print ""
+  print "Contains 3:"
+  print list_contains(lst, 3)
+
+  print ""
+  print "Contains 9:"
+  print list_contains(lst, 9)
+
+  print ""
+  print "Reversed:"
+  list_print(list_reverse(lst))
+
+  print ""
+  print "Append 6:"
+  list_print(list_append(lst, 6))
+
+  let lst2 = list_from_array([10, 20, 30])
+
+  print ""
+  print "From array [10, 20, 30]:"
+  list_print(lst2)
+
+  print ""
+  print "Concat lst + lst2:"
+  list_print(list_concat(lst, lst2))
+
+  print ""
+  print "Map x*2:"
+  list_print(list_map(lst, |x| x * 2))
+end

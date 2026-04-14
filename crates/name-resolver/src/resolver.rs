@@ -1,6 +1,7 @@
 //! Name resolution for Nevermind AST
 
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 use nevermind_ast::{Expr, Stmt, Pattern};
 
@@ -18,17 +19,41 @@ pub struct NameResolver {
 
     /// Set of visited functions to detect recursion
     visited_functions: HashSet<String>,
+
+    /// Base directory used to locate imported `.nm` files.
+    /// `None` in REPL / in-memory compilation contexts.
+    base_dir: Option<PathBuf>,
+
+    /// Set of already-resolved module paths (prevents circular imports).
+    resolved_modules: HashSet<String>,
 }
 
 impl NameResolver {
-    /// Create a new name resolver
+    /// Create a new name resolver with no file-system context.
     pub fn new() -> Self {
         let mut resolver = Self {
             symbol_table: SymbolTable::new(),
             errors: Vec::new(),
             visited_functions: HashSet::new(),
+            base_dir: None,
+            resolved_modules: HashSet::new(),
         };
-        // Register built-in functions
+        resolver.register_builtins();
+        resolver
+    }
+
+    /// Create a name resolver that can locate imported modules on disk.
+    ///
+    /// `base_dir` should be the directory containing the source file being
+    /// compiled (e.g. `input.parent()`).
+    pub fn with_base_dir(base_dir: PathBuf) -> Self {
+        let mut resolver = Self {
+            symbol_table: SymbolTable::new(),
+            errors: Vec::new(),
+            visited_functions: HashSet::new(),
+            base_dir: Some(base_dir),
+            resolved_modules: HashSet::new(),
+        };
         resolver.register_builtins();
         resolver
     }
@@ -271,9 +296,8 @@ impl NameResolver {
                 self.resolve_expression(expr)
             }
 
-            Stmt::Import { .. } => {
-                // TODO: Handle imports properly
-                Ok(())
+            Stmt::Import { module, symbols, span, .. } => {
+                self.resolve_import(module, symbols.as_deref(), span)
             }
 
             Stmt::Class { name, members, .. } => {
@@ -322,6 +346,136 @@ impl NameResolver {
                 Ok(())
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Module system helpers
+    // -----------------------------------------------------------------------
+
+    /// Resolve an import statement.
+    ///
+    /// Two forms are supported:
+    /// - `from "module" import sym1, sym2` — selective import
+    /// - `use "module"`                    — namespace import
+    fn resolve_import(
+        &mut self,
+        module: &str,
+        symbols: Option<&[String]>,
+        span: &nevermind_common::Span,
+    ) -> Result<()> {
+        // Attempt to load the module's top-level declarations from disk and
+        // register them.  If the file can't be found (e.g. it's a Python
+        // stdlib module), we fall through and trust the user's declarations.
+        self.load_module_exports(module);
+
+        match symbols {
+            Some(syms) => {
+                // `from "module" import sym1, sym2`
+                // Ensure each requested symbol is visible in the current scope.
+                // We register it as a plain variable — the actual value/type is
+                // resolved at Python runtime.
+                for sym_name in syms {
+                    if !self.symbol_table.is_defined(sym_name) {
+                        let sym = Symbol::variable(sym_name.clone(), false, span.clone());
+                        // Ignore the error: duplicate is a user mistake caught
+                        // by `scope::insert`, but we prefer a soft warning for
+                        // imports (the Python runtime will enforce correctness).
+                        let _ = self.symbol_table.declare(sym_name.clone(), sym);
+                    }
+                }
+            }
+            None => {
+                // `use "module"` — register the last path segment as a
+                // namespace variable so that `module.symbol` expressions resolve.
+                let namespace = module
+                    .split('/')
+                    .next_back()
+                    .unwrap_or(module);
+                if !self.symbol_table.is_defined(namespace) {
+                    let sym = Symbol::variable(namespace.to_string(), false, span.clone());
+                    let _ = self.symbol_table.declare(namespace.to_string(), sym);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Load and parse a `.nm` module file, registering its top-level exported
+    /// symbols into the current scope.
+    ///
+    /// Returns `true` if the module was successfully loaded.
+    /// Silently does nothing when `base_dir` is absent, the file doesn't
+    /// exist, or the module was already processed (cycle guard).
+    fn load_module_exports(&mut self, module: &str) -> bool {
+        // Cycle / already-processed guard.
+        if self.resolved_modules.contains(module) {
+            return false;
+        }
+
+        let base_dir = match self.base_dir.clone() {
+            Some(d) => d,
+            None => return false,
+        };
+
+        // Convert "math/utils" → "math/utils.nm" (OS-appropriate separator).
+        let rel: String = if cfg!(windows) {
+            module.replace('/', "\\")
+        } else {
+            module.replace('/', "/")
+        };
+        let file_path = base_dir.join(format!("{}.nm", rel));
+
+        if !file_path.exists() {
+            // Module not found on disk — could be a Python stdlib module.
+            // That's fine; Python will validate it at runtime.
+            return false;
+        }
+
+        // Mark as resolved *before* parsing to prevent re-entrant cycles.
+        self.resolved_modules.insert(module.to_string());
+
+        let source = match std::fs::read_to_string(&file_path) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+
+        // Lex
+        let mut lexer = nevermind_lexer::Lexer::new(&source);
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => return false,
+        };
+
+        // Parse
+        let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+        let stmts = match parser.parse() {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+
+        // Register every top-level declaration from the module.
+        // We only look at `fn` and `let`/`var` at the top level — those are
+        // the "public" exports.
+        for stmt in &stmts {
+            match stmt {
+                Stmt::Function { name, params, span, .. } => {
+                    if !self.symbol_table.is_defined(name) {
+                        let sym = Symbol::function(name.clone(), params.len(), span.clone());
+                        let _ = self.symbol_table.declare(name.clone(), sym);
+                    }
+                }
+                Stmt::Let { name, is_mutable, span, .. } => {
+                    if !self.symbol_table.is_defined(name) {
+                        let sym = Symbol::variable(name.clone(), *is_mutable, span.clone());
+                        let _ = self.symbol_table.declare(name.clone(), sym);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        true
     }
 
     /// Resolve an expression

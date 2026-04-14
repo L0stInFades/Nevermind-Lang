@@ -67,13 +67,23 @@ impl Parser {
 
     /// Parse a statement
     pub fn parse_statement(&mut self) -> ParseResult<Option<Stmt>> {
-        // Skip empty lines (semicolon tokens from indentation)
+        // Skip dedent markers (semicolons emitted when indentation decreases)
         while self.match_delimiter(Delimiter::Semicolon) {
             continue;
         }
 
         if self.is_at_end() {
             return Ok(None);
+        }
+
+        // After consuming dedents, we may be at a block-closing keyword.
+        // Return None so the outer loop can handle it instead of trying to
+        // parse these as expressions (which would produce a parse error).
+        match self.peek_token_type() {
+            TokenType::Keyword(Keyword::End)
+            | TokenType::Keyword(Keyword::Else)
+            | TokenType::Keyword(Keyword::Elif) => return Ok(None),
+            _ => {}
         }
 
         let stmt = match self.peek_token_type() {
@@ -436,7 +446,6 @@ impl Parser {
                     body.push(stmt);
                 }
             }
-            self.consume_keyword(Keyword::End, "expected 'end' to close 'while' block")?;
         } else {
             body.push(Stmt::ExprStmt {
                 id: nevermind_ast::new_node_id(),

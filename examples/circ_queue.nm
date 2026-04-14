@@ -1,0 +1,123 @@
+# 循环队列 (Circular Queue)
+#
+# 存储布局：[cap, head, tail, size, d0, d1, ..., d_{cap-1}]
+#   q[0] = 容量 cap
+#   q[1] = 队头下标 head（数据数组中的循环下标）
+#   q[2] = 队尾下标 tail（下一个写入位置的循环下标）
+#   q[3] = 当前元素个数 size
+#   q[4+i] = 第 i 号槽位的数据（0-indexed）
+#
+# 入队/出队均 O(1)，通过 (index+1)%cap 实现回绕。
+
+# ── 构造 ───────────────────────────────────────────────────────────────────────
+
+fn make_queue() do
+  # 容量 6，初始为空
+  [6, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+# ── 基本谓词 ───────────────────────────────────────────────────────────────────
+
+fn queue_is_empty(q) do
+  q[3] == 0
+end
+
+fn queue_is_full(q) do
+  q[3] == q[0]
+end
+
+fn queue_size(q) do
+  q[3]
+end
+
+# ── 核心操作 ───────────────────────────────────────────────────────────────────
+
+fn queue_enqueue(q, x) do
+  if q[3] < q[0] do
+    q[q[2] + 4] = x
+    var new_tail = (q[2] + 1) % q[0]
+    q[2] = new_tail
+    q[3] = q[3] + 1
+  end
+end
+
+fn queue_dequeue(q) do
+  var val = q[q[1] + 4]
+  var new_head = (q[1] + 1) % q[0]
+  q[1] = new_head
+  q[3] = q[3] - 1
+  val
+end
+
+fn queue_front(q) do
+  q[q[1] + 4]
+end
+
+# ── 打印（从队头到队尾） ────────────────────────────────────────────────────────
+
+fn queue_print(q) do
+  print "Queue [front -> rear]:"
+  var sz = q[3]
+  var i = 0
+  while i < sz do
+    var data_idx = (q[1] + i) % q[0]
+    print q[data_idx + 4]
+    i = i + 1
+  end
+end
+
+# ── 演示 ───────────────────────────────────────────────────────────────────────
+
+fn main() do
+  let q = make_queue()
+
+  print "=== 循环队列演示 ==="
+
+  print ""
+  print "-- 入队 10 20 30 40 50 60（填满）--"
+  queue_enqueue(q, 10)
+  queue_enqueue(q, 20)
+  queue_enqueue(q, 30)
+  queue_enqueue(q, 40)
+  queue_enqueue(q, 50)
+  queue_enqueue(q, 60)
+  queue_print(q)
+
+  print ""
+  print "is_full:"
+  print queue_is_full(q)
+
+  print ""
+  print "-- 出队 3 次 --"
+  print queue_dequeue(q)
+  print queue_dequeue(q)
+  print queue_dequeue(q)
+  queue_print(q)
+
+  print ""
+  print "-- 再入队 70 80 90（触发回绕）--"
+  queue_enqueue(q, 70)
+  queue_enqueue(q, 80)
+  queue_enqueue(q, 90)
+  queue_print(q)
+
+  print ""
+  print "front:"
+  print queue_front(q)
+
+  print ""
+  print "size:"
+  print queue_size(q)
+
+  print ""
+  print "-- 全部出队 --"
+  var i = 0
+  while i < 6 do
+    print queue_dequeue(q)
+    i = i + 1
+  end
+
+  print ""
+  print "is_empty:"
+  print queue_is_empty(q)
+end

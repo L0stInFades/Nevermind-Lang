@@ -1,0 +1,124 @@
+# 顺序栈 (Sequential Stack)
+#
+# 存储布局：[cap, top, d0, d1, ..., d_{cap-1}]
+#   s[0] = 容量 cap
+#   s[1] = 栈顶下标 top（-1 表示空栈，0 表示第一个元素，cap-1 表示满栈）
+#   s[i+2] = 第 i 号槽位的数据（0-indexed）
+#
+# 操作时间复杂度均为 O(1)。
+
+# ── 构造 ───────────────────────────────────────────────────────────────────────
+
+fn make_stack() do
+  # 容量 8，初始 top=-1（空栈），8 个数据槽位
+  [8, -1, 0, 0, 0, 0, 0, 0, 0, 0]
+end
+
+# ── 基本谓词 ───────────────────────────────────────────────────────────────────
+
+fn stack_is_empty(s) do
+  s[1] == -1
+end
+
+fn stack_is_full(s) do
+  s[1] == s[0] - 1
+end
+
+fn stack_size(s) do
+  s[1] + 1
+end
+
+# ── 核心操作 ───────────────────────────────────────────────────────────────────
+
+fn stack_push(s, x) do
+  if s[1] < s[0] - 1 do
+    s[1] = s[1] + 1
+    s[s[1] + 2] = x
+  end
+end
+
+fn stack_pop(s) do
+  var val = s[s[1] + 2]
+  s[1] = s[1] - 1
+  val
+end
+
+fn stack_peek(s) do
+  s[s[1] + 2]
+end
+
+# ── 打印（从栈顶到栈底） ────────────────────────────────────────────────────────
+
+fn stack_print(s) do
+  print "Stack [top -> bottom]:"
+  var i = s[1]
+  while i >= 0 do
+    print s[i + 2]
+    i = i - 1
+  end
+end
+
+# ── 演示 ───────────────────────────────────────────────────────────────────────
+
+fn main() do
+  let s = make_stack()
+
+  print "=== 顺序栈演示 ==="
+
+  print ""
+  print "-- 连续压栈 10 20 30 40 50 --"
+  stack_push(s, 10)
+  stack_push(s, 20)
+  stack_push(s, 30)
+  stack_push(s, 40)
+  stack_push(s, 50)
+  stack_print(s)
+
+  print ""
+  print "size:"
+  print stack_size(s)
+
+  print ""
+  print "peek (不弹出):"
+  print stack_peek(s)
+
+  print ""
+  print "-- 弹出两次 --"
+  print stack_pop(s)
+  print stack_pop(s)
+  stack_print(s)
+
+  print ""
+  print "is_empty:"
+  print stack_is_empty(s)
+
+  print ""
+  print "-- 填满栈（再压 6 个）--"
+  stack_push(s, 60)
+  stack_push(s, 70)
+  stack_push(s, 80)
+  stack_push(s, 90)
+  stack_push(s, 100)
+  stack_push(s, 110)
+  stack_print(s)
+
+  print ""
+  print "is_full:"
+  print stack_is_full(s)
+
+  print ""
+  print "-- 满栈时继续压栈（应被忽略）--"
+  stack_push(s, 999)
+  print "size after overflow attempt:"
+  print stack_size(s)
+
+  print ""
+  print "-- 全部弹出 --"
+  var i = 0
+  while i < 8 do
+    print stack_pop(s)
+    i = i + 1
+  end
+  print "is_empty after all pops:"
+  print stack_is_empty(s)
+end
