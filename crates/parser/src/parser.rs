@@ -5,12 +5,12 @@ use std::vec::IntoIter;
 
 use nevermind_common::Span;
 
+use nevermind_lexer::token::{Delimiter, Keyword, LiteralType, Operator};
 use nevermind_lexer::{Lexer, Token, TokenType};
-use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 
-use nevermind_ast::{Expr, Stmt, Pattern, TypeAnnotation, Parameter};
 use nevermind_ast::stmt::MatchArm;
-use nevermind_ast::types::{Type, PrimitiveType};
+use nevermind_ast::types::{PrimitiveType, Type};
+use nevermind_ast::{Expr, Parameter, Pattern, Stmt, TypeAnnotation};
 // op module used indirectly through AST types
 
 use super::error::{ParseError, ParseResult};
@@ -33,9 +33,9 @@ impl Parser {
     /// Create a new parser from a source string
     pub fn new(source: &str) -> ParseResult<Self> {
         let mut lexer = Lexer::new(source);
-        let tokens = lexer.tokenize().map_err(|e| {
-            ParseError::new(e.message, e.span)
-        })?;
+        let tokens = lexer
+            .tokenize()
+            .map_err(|e| ParseError::new(e.message, e.span))?;
 
         Ok(Self::from_tokens(tokens))
     }
@@ -57,6 +57,19 @@ impl Parser {
         let mut statements = Vec::new();
 
         while !self.is_at_end() {
+            match self.peek_token_type() {
+                TokenType::Keyword(Keyword::End) => {
+                    return Err(ParseError::new("unexpected 'end'", self.peek_span()));
+                }
+                TokenType::Keyword(Keyword::Else) => {
+                    return Err(ParseError::new("unexpected 'else'", self.peek_span()));
+                }
+                TokenType::Keyword(Keyword::Elif) => {
+                    return Err(ParseError::new("unexpected 'elif'", self.peek_span()));
+                }
+                _ => {}
+            }
+
             if let Some(stmt) = self.parse_statement()? {
                 statements.push(stmt);
             }
@@ -87,45 +100,28 @@ impl Parser {
         }
 
         let stmt = match self.peek_token_type() {
+            TokenType::Keyword(Keyword::Export) => self.parse_export_statement()?,
             TokenType::Keyword(Keyword::Let) | TokenType::Keyword(Keyword::Var) => {
                 self.parse_let_statement()?
             }
-            TokenType::Keyword(Keyword::Fn) => {
-                self.parse_function_statement()?
-            }
+            TokenType::Keyword(Keyword::Fn) => self.parse_function_statement()?,
             TokenType::Keyword(Keyword::If) => {
                 // Check if this is an if-expression (then...else...end) or if-statement (do...end)
                 // We peek ahead to see what comes after the condition
                 // For simplicity, we'll try both approaches
                 self.parse_if_or_expr_statement()?
             }
-            TokenType::Keyword(Keyword::While) => {
-                self.parse_while_statement()?
-            }
-            TokenType::Keyword(Keyword::For) => {
-                self.parse_for_statement()?
-            }
-            TokenType::Keyword(Keyword::Match) => {
-                self.parse_match_statement()?
-            }
-            TokenType::Keyword(Keyword::Return) => {
-                self.parse_return_statement()?
-            }
-            TokenType::Keyword(Keyword::Break) => {
-                self.parse_break_statement()?
-            }
-            TokenType::Keyword(Keyword::Continue) => {
-                self.parse_continue_statement()?
-            }
-            TokenType::Keyword(Keyword::Type) => {
-                self.parse_type_alias_statement()?
-            }
+            TokenType::Keyword(Keyword::While) => self.parse_while_statement()?,
+            TokenType::Keyword(Keyword::For) => self.parse_for_statement()?,
+            TokenType::Keyword(Keyword::Match) => self.parse_match_statement()?,
+            TokenType::Keyword(Keyword::Return) => self.parse_return_statement()?,
+            TokenType::Keyword(Keyword::Break) => self.parse_break_statement()?,
+            TokenType::Keyword(Keyword::Continue) => self.parse_continue_statement()?,
+            TokenType::Keyword(Keyword::Type) => self.parse_type_alias_statement()?,
             TokenType::Keyword(Keyword::Use) | TokenType::Keyword(Keyword::From) => {
                 self.parse_import_statement()?
             }
-            TokenType::Keyword(Keyword::Class) => {
-                self.parse_class_statement()?
-            }
+            TokenType::Keyword(Keyword::Class) => self.parse_class_statement()?,
             _ => {
                 // Expression statement
                 let expr = self.parse_expression()?;
@@ -138,6 +134,35 @@ impl Parser {
         };
 
         Ok(stmt)
+    }
+
+    /// Parse an explicit export declaration.
+    pub fn parse_export_statement(&mut self) -> ParseResult<Option<Stmt>> {
+        let start = self.peek_span();
+        self.consume_keyword(Keyword::Export, "expected 'export'")?;
+
+        let stmt = match self.peek_token_type() {
+            TokenType::Keyword(Keyword::Let) | TokenType::Keyword(Keyword::Var) => {
+                self.parse_let_statement()?
+            }
+            TokenType::Keyword(Keyword::Fn) => self.parse_function_statement()?,
+            TokenType::Keyword(Keyword::Type) => self.parse_type_alias_statement()?,
+            TokenType::Keyword(Keyword::Class) => self.parse_class_statement()?,
+            _ => {
+                return Err(ParseError::new(
+                    "expected a declaration after 'export'",
+                    self.peek_span(),
+                ));
+            }
+        };
+
+        let span = self.span_from(start);
+
+        Ok(stmt.map(|stmt| Stmt::Export {
+            id: nevermind_ast::new_node_id(),
+            stmt: Box::new(stmt),
+            span,
+        }))
     }
 
     /// Parse an if statement or if expression
@@ -275,11 +300,12 @@ impl Parser {
 
         let params = self.parse_parameters()?;
 
-        let return_type = if self.match_delimiter(Delimiter::Colon) || self.match_operator(Operator::Arrow) {
-            Some(self.parse_type_annotation()?)
-        } else {
-            None
-        };
+        let return_type =
+            if self.match_delimiter(Delimiter::Colon) || self.match_operator(Operator::Arrow) {
+                Some(self.parse_type_annotation()?)
+            } else {
+                None
+            };
 
         let raw_body = self.parse_expression()?;
 
@@ -290,18 +316,25 @@ impl Parser {
                 if statements.len() == 1 {
                     match &statements[0] {
                         Stmt::ExprStmt { ref expr, .. } => expr.clone(),
-                        Stmt::Match { id, scrutinee, arms, span, .. } => {
+                        Stmt::Match {
+                            id,
+                            scrutinee,
+                            arms,
+                            span,
+                            ..
+                        } => {
                             // Convert Stmt::Match to Expr::Match
                             Expr::Match {
                                 id: *id,
                                 scrutinee: Box::new(scrutinee.clone()),
-                                arms: arms.iter().map(|arm| {
-                                    nevermind_ast::expr::MatchArm {
+                                arms: arms
+                                    .iter()
+                                    .map(|arm| nevermind_ast::expr::MatchArm {
                                         pattern: arm.pattern.clone(),
                                         guard: arm.guard.as_ref().map(|g| Box::new(g.clone())),
                                         body: Box::new(arm.body.clone()),
-                                    }
-                                }).collect(),
+                                    })
+                                    .collect(),
                                 span: span.clone(),
                             }
                         }
@@ -410,7 +443,7 @@ impl Parser {
                     }
                     self.consume_keyword(Keyword::End, "expected 'end' to close 'else' block")?;
                     else_branch = Some(stmts);
-                } else if let Some(expr) = self.parse_expression().ok() {
+                } else if let Ok(expr) = self.parse_expression() {
                     else_branch = Some(vec![Stmt::ExprStmt {
                         id: nevermind_ast::new_node_id(),
                         expr,
@@ -558,9 +591,9 @@ impl Parser {
 
         self.consume_keyword(Keyword::Return, "expected 'return'")?;
 
-        let value = if !self.is_at_end() &&
-            !self.check_delimiter(Delimiter::Semicolon) &&
-            !self.check_delimiter(Delimiter::RBrace)
+        let value = if !self.is_at_end()
+            && !self.check_delimiter(Delimiter::Semicolon)
+            && !self.check_delimiter(Delimiter::RBrace)
         {
             Some(self.parse_expression()?)
         } else {
@@ -692,7 +725,7 @@ impl Parser {
 
         self.consume_delimiter(Delimiter::LBrace, "expected '{' to start class body")?;
 
-        let members = Vec::new();  // TODO: Parse members
+        let members = Vec::new(); // TODO: Parse members
 
         self.consume_delimiter(Delimiter::RBrace, "expected '}' to end class body")?;
 
@@ -715,9 +748,8 @@ impl Parser {
         let name = self.consume_identifier("expected type name")?;
 
         let kind = match name.as_str() {
-            "Int" | "UInt" | "Int64" | "UInt64" | "Int32" | "UInt32" |
-            "Float" | "Float64" | "Float32" | "Bool" | "String" | "Char" | "Unit" | "Null"
-            => {
+            "Int" | "UInt" | "Int64" | "UInt64" | "Int32" | "UInt32" | "Float" | "Float64"
+            | "Float32" | "Bool" | "String" | "Char" | "Unit" | "Null" => {
                 let prim = match name.as_str() {
                     "Int" => PrimitiveType::Int,
                     "Float" => PrimitiveType::Float,
@@ -725,7 +757,7 @@ impl Parser {
                     "String" => PrimitiveType::String,
                     "Unit" => PrimitiveType::Unit,
                     "Null" => PrimitiveType::Null,
-                    _ => PrimitiveType::Int,  // TODO: Add all primitives
+                    _ => PrimitiveType::Int, // TODO: Add all primitives
                 };
                 Type::Primitive(prim)
             }
@@ -789,28 +821,31 @@ impl Parser {
 
     /// Check if we're at the end of input
     pub fn is_at_end(&self) -> bool {
-        self.current.as_ref().map_or(true, |t| t.is_eof())
+        self.current.as_ref().is_none_or(|t| t.is_eof())
     }
 
     /// Get the current token type
     pub fn peek_token_type(&self) -> TokenType {
-        self.current.as_ref()
+        self.current
+            .as_ref()
             .map(|t| t.kind.clone())
             .unwrap_or(TokenType::EOF)
     }
 
     /// Get the span of the current token
     pub fn peek_span(&self) -> Span {
-        self.current.as_ref()
+        self.current
+            .as_ref()
             .map(|t| t.span.clone())
-            .unwrap_or_else(|| Span::dummy())
+            .unwrap_or_else(Span::dummy)
     }
 
     /// Get the span of the previous token
     pub fn previous_span(&self) -> Span {
-        self.previous.as_ref()
+        self.previous
+            .as_ref()
             .map(|t| t.span.clone())
-            .unwrap_or_else(|| Span::dummy())
+            .unwrap_or_else(Span::dummy)
     }
 
     /// Check if current token is a keyword
@@ -900,7 +935,10 @@ impl Parser {
 
     /// Consume a string literal or error
     pub fn consume_string_literal(&mut self, message: &str) -> ParseResult<String> {
-        if matches!(self.peek_token_type(), TokenType::Literal(LiteralType::String)) {
+        if matches!(
+            self.peek_token_type(),
+            TokenType::Literal(LiteralType::String)
+        ) {
             let token = self.advance().unwrap();
             Ok(token.text)
         } else {
@@ -953,5 +991,4 @@ mod tests {
             _ => panic!("expected If expression statement"),
         }
     }
-
 }

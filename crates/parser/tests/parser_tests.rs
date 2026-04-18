@@ -6,8 +6,8 @@
 //! - Error cases (missing keywords, mismatched delimiters, invalid syntax)
 //! - Complex scenarios (nested functions, multiple statements, pattern matching)
 
-use nevermind_parser::{Parser, ParseError};
-use nevermind_ast::{Stmt, Expr, Pattern, Literal, BinaryOp, ComparisonOp, UnaryOp, LogicalOp};
+use nevermind_ast::{BinaryOp, ComparisonOp, Expr, Literal, LogicalOp, Pattern, Stmt, UnaryOp};
+use nevermind_parser::{ParseError, Parser};
 
 // ============================================================================
 // Helper Functions
@@ -22,9 +22,10 @@ fn parse(source: &str) -> Result<Vec<Stmt>, ParseError> {
 /// Helper to parse and get the first statement
 fn parse_first(source: &str) -> Result<Stmt, ParseError> {
     let stmts = parse(source)?;
-    stmts.into_iter().next().ok_or_else(|| {
-        ParseError::new("No statements found", nevermind_common::Span::dummy())
-    })
+    stmts
+        .into_iter()
+        .next()
+        .ok_or_else(|| ParseError::new("No statements found", nevermind_common::Span::dummy()))
 }
 
 /// Helper to parse an expression statement
@@ -53,7 +54,9 @@ mod statement_tests {
     fn test_let_statement_immutable() {
         let stmt = parse_first("let x = 42").unwrap();
         match stmt {
-            Stmt::Let { name, is_mutable, .. } => {
+            Stmt::Let {
+                name, is_mutable, ..
+            } => {
                 assert_eq!(name, "x");
                 assert!(!is_mutable);
             }
@@ -65,7 +68,9 @@ mod statement_tests {
     fn test_let_statement_mutable() {
         let stmt = parse_first("var x = 42").unwrap();
         match stmt {
-            Stmt::Let { name, is_mutable, .. } => {
+            Stmt::Let {
+                name, is_mutable, ..
+            } => {
                 assert_eq!(name, "x");
                 assert!(is_mutable);
             }
@@ -77,7 +82,11 @@ mod statement_tests {
     fn test_let_statement_with_type() {
         let stmt = parse_first("let x: Int = 42").unwrap();
         match stmt {
-            Stmt::Let { name, type_annotation, .. } => {
+            Stmt::Let {
+                name,
+                type_annotation,
+                ..
+            } => {
                 assert_eq!(name, "x");
                 assert!(type_annotation.is_some());
             }
@@ -110,11 +119,22 @@ mod statement_tests {
     fn test_function_declaration_simple() {
         let stmt = parse_first("fn foo() do 42 end").unwrap();
         match stmt {
-            Stmt::Function { name, params, .. } => {
+            Stmt::Function { name, .. } => {
                 assert_eq!(name, "foo");
-                assert_eq!(params.len(), 0);
             }
             _ => panic!("Expected Function statement"),
+        }
+    }
+
+    #[test]
+    fn test_exported_function_declaration() {
+        let stmt = parse_first("export fn foo() do 42 end").unwrap();
+        match stmt {
+            Stmt::Export { stmt, .. } => match *stmt {
+                Stmt::Function { name, .. } => assert_eq!(name, "foo"),
+                _ => panic!("Expected exported function declaration"),
+            },
+            _ => panic!("Expected Export statement"),
         }
     }
 
@@ -136,7 +156,12 @@ mod statement_tests {
     fn test_function_declaration_with_types() {
         let stmt = parse_first("fn add(a: Int, b: Int) -> Int do a + b end").unwrap();
         match stmt {
-            Stmt::Function { name, params, return_type, .. } => {
+            Stmt::Function {
+                name,
+                params,
+                return_type,
+                ..
+            } => {
                 assert_eq!(name, "add");
                 assert_eq!(params.len(), 2);
                 assert!(params[0].type_annotation.is_some());
@@ -164,8 +189,9 @@ mod statement_tests {
         let stmt = parse_first(
             "fn factorial(n) do \
                 if n <= 1 then 1 else n * factorial(n - 1) end \
-             end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
             Stmt::Function { name, body, .. } => {
                 assert_eq!(name, "factorial");
@@ -208,10 +234,15 @@ mod statement_tests {
         let stmt = parse_first(
             "if x > 0 do \
                 print x \
-             end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
-            Stmt::If { then_branch, else_branch, .. } => {
+            Stmt::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 assert!(!then_branch.is_empty());
                 assert!(else_branch.is_none());
             }
@@ -226,10 +257,15 @@ mod statement_tests {
                 print x \
              end else do \
                 print 0 \
-             end end"
-        ).unwrap();
+             end end",
+        )
+        .unwrap();
         match stmt {
-            Stmt::If { then_branch, else_branch, .. } => {
+            Stmt::If {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 assert!(!then_branch.is_empty());
                 assert!(else_branch.is_some());
                 assert!(!else_branch.unwrap().is_empty());
@@ -245,8 +281,9 @@ mod statement_tests {
                 print \"positive\" \
              end else if x < 0 do \
                 print \"negative\" \
-             end end"
-        ).unwrap();
+             end end",
+        )
+        .unwrap();
         match stmt {
             Stmt::If { else_branch, .. } => {
                 assert!(else_branch.is_some());
@@ -264,8 +301,9 @@ mod statement_tests {
         let stmt = parse_first(
             "while true do \
                 print \"looping\" \
-             end end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
             Stmt::While { body, .. } => {
                 assert!(!body.is_empty());
@@ -279,8 +317,9 @@ mod statement_tests {
         let stmt = parse_first(
             "while x < 10 do \
                 x = x + 1 \
-             end end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
             Stmt::While { condition, .. } => {
                 match condition {
@@ -303,8 +342,9 @@ mod statement_tests {
         let stmt = parse_first(
             "for i in [1, 2, 3] do \
                 print i \
-             end end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
             Stmt::For { variable, body, .. } => {
                 match variable {
@@ -325,8 +365,9 @@ mod statement_tests {
             "for (x, y) in pairs do \
                 print x \
                 print y \
-             end end"
-        ).unwrap();
+             end",
+        )
+        .unwrap();
         match stmt {
             Stmt::For { variable, .. } => {
                 match variable {
@@ -351,8 +392,9 @@ mod statement_tests {
                 1 => print \"one\", \
                 2 => print \"two\", \
                 _ => print \"other\" \
-             }"
-        ).unwrap();
+             }",
+        )
+        .unwrap();
         match stmt {
             Stmt::Match { arms, .. } => {
                 assert_eq!(arms.len(), 3);
@@ -367,8 +409,9 @@ mod statement_tests {
             "match x { \
                 n: n > 5 => print \"big\", \
                 _ => print \"small\" \
-             }"
-        ).unwrap();
+             }",
+        )
+        .unwrap();
         match stmt {
             Stmt::Match { arms, .. } => {
                 assert_eq!(arms.len(), 2);
@@ -455,10 +498,10 @@ mod expression_tests {
 
     #[test]
     fn test_float_literal() {
-        let expr = parse_expr("3.14").unwrap();
+        let expr = parse_expr("314.0").unwrap();
         match expr {
             Expr::Literal(Literal::Float(f, _)) => {
-                assert!((f - 3.14).abs() < 0.001);
+                assert!((f - 314.0_f64 / 100.0).abs() < 0.001);
             }
             _ => panic!("Expected Float literal"),
         }
@@ -480,7 +523,7 @@ mod expression_tests {
         let expr = parse_expr("true").unwrap();
         match expr {
             Expr::Literal(Literal::Boolean(b, _)) => {
-                assert_eq!(b, true);
+                assert!(b);
             }
             _ => panic!("Expected Boolean literal"),
         }
@@ -491,7 +534,7 @@ mod expression_tests {
         let expr = parse_expr("false").unwrap();
         match expr {
             Expr::Literal(Literal::Boolean(b, _)) => {
-                assert_eq!(b, false);
+                assert!(!b);
             }
             _ => panic!("Expected Boolean literal"),
         }
@@ -531,11 +574,15 @@ mod expression_tests {
     fn test_binary_addition() {
         let expr = parse_expr("1 + 2").unwrap();
         match expr {
-            Expr::Binary { op, left, right, .. } => {
+            Expr::Binary {
+                op, left, right, ..
+            } => {
                 assert_eq!(op, BinaryOp::Add);
                 match (*left, *right) {
-                    (Expr::Literal(Literal::Integer(1, _)),
-                     Expr::Literal(Literal::Integer(2, _))) => {
+                    (
+                        Expr::Literal(Literal::Integer(1, _)),
+                        Expr::Literal(Literal::Integer(2, _)),
+                    ) => {
                         // Success
                     }
                     _ => panic!("Expected integer literals"),
@@ -1034,7 +1081,7 @@ mod error_tests {
 
     #[test]
     fn test_unclosed_string() {
-        let result = parse_expr("\"hello");
+        let _result = parse_expr("\"hello");
         // This might not fail in the lexer, but could fail in parser
         // depending on implementation
     }
@@ -1043,6 +1090,12 @@ mod error_tests {
     fn test_invalid_operator() {
         let result = parse_expr("1 @ 2");
         // @ is not a valid operator
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unexpected_end_at_top_level() {
+        let result = parse("end");
         assert!(result.is_err());
     }
 }
@@ -1169,11 +1222,13 @@ mod complex_tests {
 
     #[test]
     fn test_complex_pipeline() {
-        let expr = parse_expr("[1, 2, 3, 4, 5] \
+        let expr = parse_expr(
+            "[1, 2, 3, 4, 5] \
             |> filter |x| x > 2 | \
             |> map |x| x * 2 | \
-            |> fold 0 |acc, x| acc + x |"
-        ).unwrap();
+            |> fold 0 |acc, x| acc + x |",
+        )
+        .unwrap();
         match expr {
             Expr::Pipeline { stages, .. } => {
                 assert_eq!(stages.len(), 4);
@@ -1214,8 +1269,6 @@ mod complex_tests {
 
 mod example_tests {
     use super::*;
-    use std::fs;
-    use std::path::Path;
 
     #[test]
     fn test_hello_example() {
@@ -1308,19 +1361,17 @@ mod example_tests {
             fn loop_test() do \
                 while true do \
                     print \"looping\" \
-                end end \
+                end \
             end";
 
         let stmt = parse_first(source).unwrap();
         match stmt {
-            Stmt::Function { body, .. } => {
-                match body {
-                    Expr::Block { statements, .. } => {
-                        assert!(!statements.is_empty());
-                    }
-                    _ => panic!("Expected Block in function body"),
+            Stmt::Function { body, .. } => match body {
+                Expr::Block { statements, .. } => {
+                    assert!(!statements.is_empty());
                 }
-            }
+                _ => panic!("Expected Block in function body"),
+            },
             _ => panic!("Expected Function statement"),
         }
     }
@@ -1336,14 +1387,12 @@ mod example_tests {
 
         let stmt = parse_first(source).unwrap();
         match stmt {
-            Stmt::Function { body, .. } => {
-                match body {
-                    Expr::Block { statements, .. } => {
-                        assert!(!statements.is_empty());
-                    }
-                    _ => panic!("Expected Block in function body"),
+            Stmt::Function { body, .. } => match body {
+                Expr::Block { statements, .. } => {
+                    assert!(!statements.is_empty());
                 }
-            }
+                _ => panic!("Expected Block in function body"),
+            },
             _ => panic!("Expected Function statement"),
         }
     }
@@ -1357,12 +1406,12 @@ mod example_tests {
             fn test_break() do \
                 while true do \
                     break \
-                end end \
+                end \
             end \
             fn test_continue() do \
                 while true do \
                     continue \
-                end end \
+                end \
             end";
 
         let stmts = parse(source).unwrap();

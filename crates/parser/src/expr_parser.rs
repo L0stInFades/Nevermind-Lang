@@ -2,11 +2,11 @@
 
 use nevermind_common::Span;
 
+use nevermind_lexer::token::{Delimiter, Keyword, LiteralType, Operator};
 use nevermind_lexer::{Token, TokenType};
-use nevermind_lexer::token::{Keyword, Operator, Delimiter, LiteralType};
 
-use nevermind_ast::{Expr, Parameter, MatchArm, Literal};
-use nevermind_ast::op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp};
+use nevermind_ast::op::{BinaryOp, ComparisonOp, LogicalOp, UnaryOp};
+use nevermind_ast::{Expr, Literal, MatchArm, Parameter};
 
 use super::error::{ParseError, ParseResult};
 use super::Parser;
@@ -31,12 +31,8 @@ impl<'a> ExprParser<'a> {
         let mut lhs = self.parse_prefix(min_bp)?;
 
         // Parse infix operators
-        loop {
-            let op_token = if let Some(token) = &self.parser.current {
-                token.clone()
-            } else {
-                break;
-            };
+        while let Some(token) = &self.parser.current {
+            let op_token = token.clone();
 
             let (left_bp, right_bp) = match self.get_binding_power(&op_token) {
                 Some(bp) => bp,
@@ -72,9 +68,7 @@ impl<'a> ExprParser<'a> {
                         let value = token.text.parse::<f64>().unwrap_or(0.0);
                         Literal::Float(value, span)
                     }
-                    LiteralType::String => {
-                        Literal::String(token.text, span)
-                    }
+                    LiteralType::String => Literal::String(token.text, span),
                     LiteralType::Char => {
                         let c = token.text.chars().next().unwrap_or('\0');
                         Literal::Char(c, span)
@@ -98,7 +92,10 @@ impl<'a> ExprParser<'a> {
                 // misinterpreting tokens inside higher-precedence subexpressions.
                 // For identifier arguments, require same line to avoid merging
                 // separate statements.
-                let same_line = self.parser.current.as_ref()
+                let same_line = self
+                    .parser
+                    .current
+                    .as_ref()
                     .map(|t| t.span.start.line == token.span.start.line)
                     .unwrap_or(false);
 
@@ -171,7 +168,8 @@ impl<'a> ExprParser<'a> {
             TokenType::Delimiter(Delimiter::LParen) => {
                 self.parser.advance();
                 let expr = self.parse_expression_bp(0)?;
-                self.parser.consume_delimiter(Delimiter::RParen, "expected ')' after expression")?;
+                self.parser
+                    .consume_delimiter(Delimiter::RParen, "expected ')' after expression")?;
                 expr
             }
 
@@ -185,7 +183,9 @@ impl<'a> ExprParser<'a> {
                 self.parse_map()?
             }
 
-            TokenType::Operator(Operator::Not) | TokenType::Operator(Operator::BitNot) | TokenType::Operator(Operator::Sub) => {
+            TokenType::Operator(Operator::Not)
+            | TokenType::Operator(Operator::BitNot)
+            | TokenType::Operator(Operator::Sub) => {
                 let token = self.parser.advance().unwrap();
                 let op = match token.kind {
                     TokenType::Operator(Operator::Not) => UnaryOp::Not,
@@ -194,7 +194,7 @@ impl<'a> ExprParser<'a> {
                     _ => unreachable!(),
                 };
 
-                let expr = self.parse_expression_bp(14)?;  // Unary operators have high precedence
+                let expr = self.parse_expression_bp(14)?; // Unary operators have high precedence
 
                 Expr::Unary {
                     id: nevermind_ast::new_node_id(),
@@ -227,7 +227,10 @@ impl<'a> ExprParser<'a> {
 
             _ => {
                 return Err(ParseError::new(
-                    format!("unexpected token in expression: {:?}", self.parser.peek_token_type()),
+                    format!(
+                        "unexpected token in expression: {:?}",
+                        self.parser.peek_token_type()
+                    ),
                     start,
                 ))
             }
@@ -235,10 +238,14 @@ impl<'a> ExprParser<'a> {
 
         // Parse postfix index operations: expr[index]
         let mut result = expr;
-        while matches!(self.parser.peek_token_type(), TokenType::Delimiter(Delimiter::LBracket)) {
+        while matches!(
+            self.parser.peek_token_type(),
+            TokenType::Delimiter(Delimiter::LBracket)
+        ) {
             self.parser.advance(); // consume [
             let index = self.parse_expression_bp(0)?;
-            self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' after index")?;
+            self.parser
+                .consume_delimiter(Delimiter::RBracket, "expected ']' after index")?;
 
             result = Expr::Index {
                 id: nevermind_ast::new_node_id(),
@@ -262,8 +269,13 @@ impl<'a> ExprParser<'a> {
         let expr = match op_token.kind {
             TokenType::Operator(op) => {
                 match op {
-                    Operator::Add | Operator::Sub | Operator::Mul | Operator::Div |
-                    Operator::Mod | Operator::Pow | Operator::Concat => {
+                    Operator::Add
+                    | Operator::Sub
+                    | Operator::Mul
+                    | Operator::Div
+                    | Operator::Mod
+                    | Operator::Pow
+                    | Operator::Concat => {
                         let rhs = self.parse_expression_bp(right_bp)?;
                         let bin_op = match op {
                             Operator::Add => BinaryOp::Add,
@@ -285,8 +297,12 @@ impl<'a> ExprParser<'a> {
                         }
                     }
 
-                    Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt |
-                    Operator::Le | Operator::Ge => {
+                    Operator::Eq
+                    | Operator::Ne
+                    | Operator::Lt
+                    | Operator::Gt
+                    | Operator::Le
+                    | Operator::Ge => {
                         let rhs = self.parse_expression_bp(right_bp)?;
                         let cmp_op = match op {
                             Operator::Eq => ComparisonOp::Eq,
@@ -352,7 +368,9 @@ impl<'a> ExprParser<'a> {
 
                     Operator::Dot => {
                         // Field access or method call
-                        let field = self.parser.consume_identifier("expected field name after '.'")?;
+                        let field = self
+                            .parser
+                            .consume_identifier("expected field name after '.'")?;
 
                         let member_expr = Expr::MemberAccess {
                             id: nevermind_ast::new_node_id(),
@@ -375,8 +393,10 @@ impl<'a> ExprParser<'a> {
                                 args: vec![lambda],
                                 span: self.parser.span_from(start),
                             }
-                        } else if matches!(self.parser.peek_token_type(), TokenType::Identifier | TokenType::Literal(_))
-                            && !self.parser.check_keyword(Keyword::End)
+                        } else if matches!(
+                            self.parser.peek_token_type(),
+                            TokenType::Identifier | TokenType::Literal(_)
+                        ) && !self.parser.check_keyword(Keyword::End)
                             && !self.parser.check_keyword(Keyword::Do)
                             && !self.parser.check_keyword(Keyword::Then)
                             && !self.parser.check_keyword(Keyword::Else)
@@ -417,7 +437,8 @@ impl<'a> ExprParser<'a> {
                     }
                 }
 
-                self.parser.consume_delimiter(Delimiter::RParen, "expected ')' after arguments")?;
+                self.parser
+                    .consume_delimiter(Delimiter::RParen, "expected ')' after arguments")?;
 
                 Expr::Call {
                     id: nevermind_ast::new_node_id(),
@@ -431,13 +452,14 @@ impl<'a> ExprParser<'a> {
                 // Index or slice
                 self.parser.advance();
                 let index = self.parse_expression_bp(0)?;
-                self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' after index")?;
+                self.parser
+                    .consume_delimiter(Delimiter::RBracket, "expected ']' after index")?;
 
                 Expr::Variable {
                     id: nevermind_ast::new_node_id(),
                     name: format!("{:?}[{:?}]", lhs, index),
                     span: self.parser.span_from(start),
-                }  // TODO: Implement proper indexing
+                } // TODO: Implement proper indexing
             }
 
             _ => {
@@ -465,7 +487,8 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' after list elements")?;
+        self.parser
+            .consume_delimiter(Delimiter::RBracket, "expected ']' after list elements")?;
 
         Ok(Expr::List {
             id: nevermind_ast::new_node_id(),
@@ -482,7 +505,8 @@ impl<'a> ExprParser<'a> {
 
         while !self.parser.check_delimiter(Delimiter::RBrace) && !self.parser.is_at_end() {
             let key = self.parse_expression_bp(0)?;
-            self.parser.consume_delimiter(Delimiter::Colon, "expected ':' after map key")?;
+            self.parser
+                .consume_delimiter(Delimiter::Colon, "expected ':' after map key")?;
             let value = self.parse_expression_bp(0)?;
 
             entries.push((key, value));
@@ -492,7 +516,8 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::RBrace, "expected '}' after map entries")?;
+        self.parser
+            .consume_delimiter(Delimiter::RBrace, "expected '}' after map entries")?;
 
         Ok(Expr::Map {
             id: nevermind_ast::new_node_id(),
@@ -529,7 +554,8 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_operator(Operator::BitOr, "expected '|' to end lambda parameters")?;
+        self.parser
+            .consume_operator(Operator::BitOr, "expected '|' to end lambda parameters")?;
 
         // Parse body expression
         let body = self.parse_expression_bp(0)?;
@@ -551,15 +577,18 @@ impl<'a> ExprParser<'a> {
 
         let condition = self.parse_expression_bp(0)?;
 
-        self.parser.consume_keyword(Keyword::Then, "expected 'then' in if expression")?;
+        self.parser
+            .consume_keyword(Keyword::Then, "expected 'then' in if expression")?;
 
         let then_branch = self.parse_expression_bp(0)?;
 
-        self.parser.consume_keyword(Keyword::Else, "expected 'else' in if expression")?;
+        self.parser
+            .consume_keyword(Keyword::Else, "expected 'else' in if expression")?;
 
         let else_branch = self.parse_expression_bp(0)?;
 
-        self.parser.consume_keyword(Keyword::End, "expected 'end' to close if expression")?;
+        self.parser
+            .consume_keyword(Keyword::End, "expected 'end' to close if expression")?;
 
         Ok(Expr::If {
             id: nevermind_ast::new_node_id(),
@@ -582,7 +611,8 @@ impl<'a> ExprParser<'a> {
             }
         }
 
-        self.parser.consume_keyword(Keyword::End, "expected 'end' to close block")?;
+        self.parser
+            .consume_keyword(Keyword::End, "expected 'end' to close block")?;
 
         Ok(Expr::Block {
             id: nevermind_ast::new_node_id(),
@@ -597,7 +627,8 @@ impl<'a> ExprParser<'a> {
 
         let scrutinee = self.parse_expression_bp(0)?;
 
-        self.parser.consume_delimiter(Delimiter::LBrace, "expected '{' to start match arms")?;
+        self.parser
+            .consume_delimiter(Delimiter::LBrace, "expected '{' to start match arms")?;
 
         let mut arms = Vec::new();
 
@@ -610,7 +641,8 @@ impl<'a> ExprParser<'a> {
                 None
             };
 
-            self.parser.consume_operator(Operator::FatArrow, "expected '=>' after match pattern")?;
+            self.parser
+                .consume_operator(Operator::FatArrow, "expected '=>' after match pattern")?;
 
             let body = self.parse_expression_bp(0)?;
 
@@ -623,7 +655,8 @@ impl<'a> ExprParser<'a> {
             self.parser.match_delimiter(Delimiter::Comma);
         }
 
-        self.parser.consume_delimiter(Delimiter::RBrace, "expected '}' to end match expression")?;
+        self.parser
+            .consume_delimiter(Delimiter::RBrace, "expected '}' to end match expression")?;
 
         Ok(Expr::Match {
             id: nevermind_ast::new_node_id(),
@@ -641,10 +674,15 @@ impl<'a> ExprParser<'a> {
                     Operator::Assign => (2, 1),
                     Operator::Or => (4, 5),
                     Operator::And => (5, 6),
-                    Operator::Eq | Operator::Ne | Operator::Lt | Operator::Gt | Operator::Le | Operator::Ge => (8, 9),
+                    Operator::Eq
+                    | Operator::Ne
+                    | Operator::Lt
+                    | Operator::Gt
+                    | Operator::Le
+                    | Operator::Ge => (8, 9),
                     Operator::Add | Operator::Sub => (10, 11),
                     Operator::Mul | Operator::Div | Operator::Mod => (12, 13),
-                    Operator::Pow => (15, 14),  // Right-associative
+                    Operator::Pow => (15, 14), // Right-associative
                     Operator::Concat => (11, 11),
                     Operator::Pipe => (6, 7),
                     Operator::Dot => (22, 21),

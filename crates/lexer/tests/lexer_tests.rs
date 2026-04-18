@@ -1,15 +1,13 @@
 //! Comprehensive unit tests for the Nevermind Lexer
 
+use nevermind_lexer::token::{Delimiter, Keyword, LiteralType, Operator, Token, TokenType};
 use nevermind_lexer::Lexer;
-use nevermind_lexer::token::{Token, TokenType, Keyword, Operator, Delimiter, LiteralType};
 
 /// Helper function to tokenize source and return the tokens (excluding EOF)
 fn tokenize(source: &str) -> Vec<Token> {
     let mut lexer = Lexer::new(source);
     match lexer.tokenize() {
-        Ok(tokens) => tokens.into_iter()
-            .filter(|t| !t.is_eof())
-            .collect(),
+        Ok(tokens) => tokens.into_iter().filter(|t| !t.is_eof()).collect(),
         Err(e) => {
             panic!("Failed to tokenize source {:?}: {}", source, e);
         }
@@ -472,7 +470,11 @@ fn test_multiple_identifiers() {
     let tokens = tokenize(source);
     assert_token_kinds(
         &tokens,
-        &[TokenType::Identifier, TokenType::Identifier, TokenType::Identifier],
+        &[
+            TokenType::Identifier,
+            TokenType::Identifier,
+            TokenType::Identifier,
+        ],
     );
     assert_token_texts(&tokens, &["foo", "bar", "baz"]);
 }
@@ -635,7 +637,7 @@ fn test_string_with_escape_quote() {
 
 #[test]
 fn test_string_with_hex_escape() {
-    let source = r#""\x41""#;  // 'A' in ASCII
+    let source = r#""\x41""#; // 'A' in ASCII
     let tokens = tokenize(source);
     assert_token_kinds(&tokens, &[TokenType::Literal(LiteralType::String)]);
     assert_eq!(tokens[0].text, "A");
@@ -643,7 +645,7 @@ fn test_string_with_hex_escape() {
 
 #[test]
 fn test_string_with_unicode_escape() {
-    let source = r#""\u{1F600}""#;  // 😀
+    let source = r#""\u{1F600}""#; // 😀
     let tokens = tokenize(source);
     assert_token_kinds(&tokens, &[TokenType::Literal(LiteralType::String)]);
     assert_eq!(tokens[0].text, "😀");
@@ -690,7 +692,7 @@ fn test_hash_line_comment() {
     let source = "# This is a comment\nlet x = 5";
     let tokens = tokenize(source);
     // Comment should be ignored, only tokens after should remain
-    assert!(tokens.len() > 0);
+    assert!(!tokens.is_empty());
     assert_eq!(tokens[0].kind, TokenType::Keyword(Keyword::Let));
 }
 
@@ -747,7 +749,7 @@ fn test_whitespace_only() {
 #[test]
 fn test_newlines_only() {
     let source = "\n\n\n";
-    let tokens = tokenize(source);
+    let _tokens = tokenize(source);
     // Newlines might produce semicolon tokens for indentation
     // This test just ensures it doesn't crash
 }
@@ -770,7 +772,7 @@ fn test_tokens_with_whitespace() {
 
 #[test]
 fn test_dots_not_float() {
-    let source = "1 . 2";  // Three separate tokens: 1, ., 2
+    let source = "1 . 2"; // Three separate tokens: 1, ., 2
     let tokens = tokenize(source);
     assert_token_kinds(
         &tokens,
@@ -795,10 +797,7 @@ fn test_keyword_not_identifier() {
 fn test_identifier_similar_to_keyword() {
     let source = "letx vari";
     let tokens = tokenize(source);
-    assert_token_kinds(
-        &tokens,
-        &[TokenType::Identifier, TokenType::Identifier],
-    );
+    assert_token_kinds(&tokens, &[TokenType::Identifier, TokenType::Identifier]);
 }
 
 // ============================================================================
@@ -994,8 +993,12 @@ fn test_member_access() {
 fn test_match_expression() {
     let source = "match x\n  case 1 => \"one\"\n  case 2 => \"two\"";
     let tokens = tokenize(source);
-    assert!(tokens.iter().any(|t| t.kind == TokenType::Keyword(Keyword::Match)));
-    assert!(tokens.iter().any(|t| t.kind == TokenType::Keyword(Keyword::Case)));
+    assert!(tokens
+        .iter()
+        .any(|t| t.kind == TokenType::Keyword(Keyword::Match)));
+    assert!(tokens
+        .iter()
+        .any(|t| t.kind == TokenType::Keyword(Keyword::Case)));
 }
 
 // ============================================================================
@@ -1028,14 +1031,14 @@ fn test_unterminated_char() {
 fn test_invalid_character() {
     let source = "@@@";
     let mut lexer = Lexer::new(source);
-    let result = lexer.tokenize();
+    let _result = lexer.tokenize();
     // The first '@' should tokenize as a delimiter, but invalid chars should error
     // This test ensures the lexer can handle various character sequences
 }
 
 #[test]
 fn test_invalid_unicode_escape() {
-    let source = r#""\u{ZZZZ}""#;  // Invalid hex digits
+    let source = r#""\u{ZZZZ}""#; // Invalid hex digits
     let mut lexer = Lexer::new(source);
     let result = lexer.tokenize();
     assert!(result.is_err());
@@ -1043,7 +1046,7 @@ fn test_invalid_unicode_escape() {
 
 #[test]
 fn test_unterminated_unicode_escape() {
-    let source = r#""\u{1234""#;  // Missing closing brace
+    let source = r#""\u{1234""#; // Missing closing brace
     let mut lexer = Lexer::new(source);
     let result = lexer.tokenize();
     assert!(result.is_err());
@@ -1051,7 +1054,7 @@ fn test_unterminated_unicode_escape() {
 
 #[test]
 fn test_invalid_unicode_escape_no_brace() {
-    let source = r#""\u1234""#;  // Missing opening brace
+    let source = r#""\u1234""#; // Missing opening brace
     let mut lexer = Lexer::new(source);
     let result = lexer.tokenize();
     assert!(result.is_err());
@@ -1077,28 +1080,28 @@ fn test_basic_indentation() {
     let source = "let x = 1\n  let y = 2\nlet z = 3";
     let tokens = tokenize(source);
     // Should tokenize successfully and handle indentation
-    assert!(tokens.len() > 0);
+    assert!(!tokens.is_empty());
 }
 
 #[test]
 fn test_increasing_indentation() {
     let source = "fn foo()\n  let x = 1\n  let y = 2";
     let tokens = tokenize(source);
-    assert!(tokens.len() > 0);
+    assert!(!tokens.is_empty());
 }
 
 #[test]
 fn test_decreasing_indentation() {
     let source = "fn foo()\n  let x = 1\nlet y = 2";
     let tokens = tokenize(source);
-    assert!(tokens.len() > 0);
+    assert!(!tokens.is_empty());
 }
 
 #[test]
 fn test_inconsistent_indentation() {
-    let source = "fn foo()\n  let x = 1\n let y = 2";  // Inconsistent: 2 spaces then 1 space
+    let source = "fn foo()\n  let x = 1\n let y = 2"; // Inconsistent: 2 spaces then 1 space
     let mut lexer = Lexer::new(source);
-    let result = lexer.tokenize();
+    let _result = lexer.tokenize();
     // This might produce an error due to inconsistent indentation
     // The test verifies the lexer handles it appropriately
 }
@@ -1110,7 +1113,11 @@ fn test_tab_indentation_is_rejected() {
     let result = lexer.tokenize();
     assert!(result.is_err());
     if let Err(err) = result {
-        assert!(err.message.contains("tabs"), "expected tab indentation error, got {}", err.message);
+        assert!(
+            err.message.contains("tabs"),
+            "expected tab indentation error, got {}",
+            err.message
+        );
     }
 }
 
@@ -1118,7 +1125,8 @@ fn test_tab_indentation_is_rejected() {
 fn test_multiple_dedents_emit_semicolons() {
     let source = "fn foo()\n  let x = 1\n    let y = 2\nlet z = 3";
     let tokens = tokenize(source);
-    let semicolons = tokens.iter()
+    let semicolons = tokens
+        .iter()
         .filter(|t| matches!(t.kind, TokenType::Delimiter(Delimiter::Semicolon)))
         .count();
     assert!(
@@ -1250,7 +1258,7 @@ fn factorial(n)
     n * factorial(n - 1)
 "#;
     let tokens = tokenize(source);
-    assert!(tokens.len() > 0);
+    assert!(!tokens.is_empty());
     assert!(tokens.iter().any(|t| t.is_keyword()));
 }
 

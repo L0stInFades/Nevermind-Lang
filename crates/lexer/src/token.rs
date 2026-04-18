@@ -70,7 +70,7 @@ impl fmt::Display for Token {
 }
 
 /// The type of a token
-#[derive(Debug, Clone, PartialEq, Eq, Hash, )]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TokenType {
     /// Keywords
     Keyword(Keyword),
@@ -92,11 +92,14 @@ pub enum TokenType {
 }
 
 /// Keywords in Nevermind
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Keyword {
     // Variable declarations
     Let,
     Var,
+
+    // Modules
+    Export,
 
     // Control flow
     If,
@@ -165,11 +168,12 @@ pub enum Keyword {
 }
 
 impl Keyword {
-    /// Get the keyword from a string
-    pub fn from_str(s: &str) -> Option<Self> {
+    /// Look up a keyword by source text
+    pub fn lookup(s: &str) -> Option<Self> {
         match s {
             "let" => Some(Keyword::Let),
             "var" => Some(Keyword::Var),
+            "export" => Some(Keyword::Export),
             "if" => Some(Keyword::If),
             "then" => Some(Keyword::Then),
             "else" => Some(Keyword::Else),
@@ -213,7 +217,7 @@ impl Keyword {
 }
 
 /// Literal types
-#[derive(Debug, Clone, PartialEq, Eq, Hash, )]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LiteralType {
     Integer,
     Float,
@@ -222,28 +226,28 @@ pub enum LiteralType {
 }
 
 /// Operators
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Operator {
     // Arithmetic
-    Add,        // +
-    Sub,        // -
-    Mul,        // *
-    Div,        // /
-    Mod,        // %
-    Pow,        // **
+    Add, // +
+    Sub, // -
+    Mul, // *
+    Div, // /
+    Mod, // %
+    Pow, // **
 
     // Comparison
-    Eq,         // ==
-    Ne,         // !=
-    Lt,         // <
-    Gt,         // >
-    Le,         // <=
-    Ge,         // >=
+    Eq, // ==
+    Ne, // !=
+    Lt, // <
+    Gt, // >
+    Le, // <=
+    Ge, // >=
 
     // Logical
-    And,        // and
-    Or,         // or
-    Not,        // not
+    And, // and
+    Or,  // or
+    Not, // not
 
     // Bitwise
     BitAnd,     // &
@@ -254,19 +258,19 @@ pub enum Operator {
     ShiftRight, // >>
 
     // Other
-    Pipe,       // |>
-    Assign,     // =
-    Arrow,      // ->
-    FatArrow,   // =>
-    Dot,        // .
-    DotDot,     // ..
-    DotDotDot,  // ...
-    Concat,     // ++
+    Pipe,      // |>
+    Assign,    // =
+    Arrow,     // ->
+    FatArrow,  // =>
+    Dot,       // .
+    DotDot,    // ..
+    DotDotDot, // ...
+    Concat,    // ++
 }
 
 impl Operator {
-    /// Get the operator from a string
-    pub fn from_str(s: &str) -> Option<Self> {
+    /// Look up an operator by source text
+    pub fn lookup(s: &str) -> Option<Self> {
         match s {
             "+" => Some(Operator::Add),
             "-" => Some(Operator::Sub),
@@ -339,21 +343,21 @@ impl Operator {
 }
 
 /// Delimiters
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, )]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Delimiter {
-    LParen,     // (
-    RParen,     // )
-    LBrace,     // {
-    RBrace,     // }
-    LBracket,   // [
-    RBracket,   // ]
-    Comma,      // ,
-    Colon,      // :
-    Semicolon,  // ;
-    At,         // @
-    Question,   // ?
-    Dollar,     // $
-    Backtick,   // `
+    LParen,    // (
+    RParen,    // )
+    LBrace,    // {
+    RBrace,    // }
+    LBracket,  // [
+    RBracket,  // ]
+    Comma,     // ,
+    Colon,     // :
+    Semicolon, // ;
+    At,        // @
+    Question,  // ?
+    Dollar,    // $
+    Backtick,  // `
 }
 
 impl Delimiter {
@@ -403,15 +407,15 @@ mod tests {
 
     #[test]
     fn test_keyword_from_str() {
-        assert_eq!(Keyword::from_str("let"), Some(Keyword::Let));
-        assert_eq!(Keyword::from_str("if"), Some(Keyword::If));
-        assert_eq!(Keyword::from_str("xyz"), None);
+        assert_eq!(Keyword::lookup("let"), Some(Keyword::Let));
+        assert_eq!(Keyword::lookup("if"), Some(Keyword::If));
+        assert_eq!(Keyword::lookup("xyz"), None);
     }
 
     #[test]
     fn test_operator_from_str() {
-        assert_eq!(Operator::from_str("+"), Some(Operator::Add));
-        assert_eq!(Operator::from_str("=="), Some(Operator::Eq));
-        assert_eq!(Operator::from_str("xyz"), None);
+        assert_eq!(Operator::lookup("+"), Some(Operator::Add));
+        assert_eq!(Operator::lookup("=="), Some(Operator::Eq));
+        assert_eq!(Operator::lookup("xyz"), None);
     }
 }

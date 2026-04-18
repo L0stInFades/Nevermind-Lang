@@ -1,7 +1,10 @@
 //! MIR lowering - convert typed AST to MIR
 
-use super::{MirExpr, MirExprStmt, MirBlock, MirStmt, MirMatchArm, MirPattern, BinOp, UnaryOp, Literal, NodeId, Param};
-use nevermind_ast::{Expr, Stmt, Pattern};
+use super::{
+    BinOp, Literal, MirBlock, MirExpr, MirExprStmt, MirMatchArm, MirPattern, MirStmt, NodeId,
+    Param, UnaryOp,
+};
+use nevermind_ast::{Expr, Pattern, Stmt};
 use nevermind_type_checker::Type;
 
 /// Error during MIR lowering
@@ -19,13 +22,18 @@ pub type Result<T> = std::result::Result<T, LoweringError>;
 /// Lower a typed AST statement to MIR
 pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
     match stmt {
+        Stmt::Export { stmt, .. } => lower_statement(stmt),
         Stmt::Let {
-            name, value, is_mutable: _, type_annotation, ..
+            name,
+            value,
+            is_mutable: _,
+            type_annotation,
+            ..
         } => {
             let mir_value = lower_expression(value)?;
             let mir_type = type_annotation
                 .as_ref()
-                .and_then(|t| resolve_type_annotation(t))
+                .and_then(resolve_type_annotation)
                 .unwrap_or_else(|| mir_value.get_type().clone());
 
             Ok(MirStmt::Let {
@@ -48,9 +56,10 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
                 .map(|p| {
                     Ok(Param {
                         name: p.name.clone(),
-                        ty: p.type_annotation
+                        ty: p
+                            .type_annotation
                             .as_ref()
-                            .and_then(|t| resolve_type_annotation(t))
+                            .and_then(resolve_type_annotation)
                             .unwrap_or(Type::Unit),
                         id: p.id,
                     })
@@ -73,7 +82,12 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             Ok(MirStmt::Expr(mir_expr))
         }
 
-        Stmt::If { condition, then_branch, else_branch, .. } => {
+        Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
             let mir_cond = lower_expression(condition)?;
             let mir_then = lower_statements(then_branch)?;
             let mir_else = match else_branch {
@@ -88,7 +102,9 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             })
         }
 
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             let mir_cond = lower_expression(condition)?;
             let mir_body = lower_statements(body)?;
             Ok(MirStmt::While {
@@ -98,7 +114,12 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             })
         }
 
-        Stmt::For { variable, iter, body, .. } => {
+        Stmt::For {
+            variable,
+            iter,
+            body,
+            ..
+        } => {
             let var_name = pattern_to_variable_name(variable);
             let mir_iter = lower_expression(iter)?;
             let mir_body = lower_statements(body)?;
@@ -121,19 +142,17 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             })
         }
 
-        Stmt::Break { .. } => {
-            Ok(MirStmt::Break {
-                id: fresh_node_id(),
-            })
-        }
+        Stmt::Break { .. } => Ok(MirStmt::Break {
+            id: fresh_node_id(),
+        }),
 
-        Stmt::Continue { .. } => {
-            Ok(MirStmt::Continue {
-                id: fresh_node_id(),
-            })
-        }
+        Stmt::Continue { .. } => Ok(MirStmt::Continue {
+            id: fresh_node_id(),
+        }),
 
-        Stmt::Match { scrutinee, arms, .. } => {
+        Stmt::Match {
+            scrutinee, arms, ..
+        } => {
             let mir_scrutinee = lower_expression(scrutinee)?;
             let mir_arms = arms
                 .iter()
@@ -146,7 +165,11 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
                     // Match arm body is an Expr; wrap it as a single Expr statement
                     let body_expr = lower_expression(&arm.body)?;
                     let body = vec![MirStmt::Expr(body_expr)];
-                    Ok(MirMatchArm { pattern, guard, body })
+                    Ok(MirMatchArm {
+                        pattern,
+                        guard,
+                        body,
+                    })
                 })
                 .collect::<Result<Vec<_>>>()?;
             Ok(MirStmt::Match {
@@ -156,22 +179,20 @@ pub fn lower_statement(stmt: &Stmt) -> Result<MirStmt> {
             })
         }
 
-        Stmt::Import { module, symbols, .. } => {
-            Ok(MirStmt::Import {
-                module: module.clone(),
-                symbols: symbols.clone(),
-                id: fresh_node_id(),
-            })
-        }
+        Stmt::Import {
+            module, symbols, ..
+        } => Ok(MirStmt::Import {
+            module: module.clone(),
+            symbols: symbols.clone(),
+            id: fresh_node_id(),
+        }),
 
         // Type aliases and class declarations don't produce runtime code.
-        Stmt::TypeAlias { .. } | Stmt::Class { .. } => {
-            Ok(MirStmt::Expr(MirExpr::Literal {
-                value: Literal::Null,
-                ty: Type::Unit,
-                id: fresh_node_id(),
-            }))
-        }
+        Stmt::TypeAlias { .. } | Stmt::Class { .. } => Ok(MirStmt::Expr(MirExpr::Literal {
+            value: Literal::Null,
+            ty: Type::Unit,
+            id: fresh_node_id(),
+        })),
     }
 }
 
@@ -294,7 +315,10 @@ fn lower_pattern(pattern: &Pattern) -> Result<MirPattern> {
             })
         }
         Pattern::List { patterns, .. } => {
-            let mir_patterns = patterns.iter().map(lower_pattern).collect::<Result<Vec<_>>>()?;
+            let mir_patterns = patterns
+                .iter()
+                .map(lower_pattern)
+                .collect::<Result<Vec<_>>>()?;
             Ok(MirPattern::List {
                 patterns: mir_patterns,
                 rest: None,
@@ -306,10 +330,14 @@ fn lower_pattern(pattern: &Pattern) -> Result<MirPattern> {
             if let Some(first) = patterns.first() {
                 lower_pattern(first)
             } else {
-                Ok(MirPattern::Wildcard { id: fresh_node_id() })
+                Ok(MirPattern::Wildcard {
+                    id: fresh_node_id(),
+                })
             }
         }
-        _ => Ok(MirPattern::Wildcard { id: fresh_node_id() }),
+        _ => Ok(MirPattern::Wildcard {
+            id: fresh_node_id(),
+        }),
     }
 }
 
@@ -330,13 +358,11 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
     match expr {
         Expr::Literal(literal) => lower_literal(literal),
 
-        Expr::Variable { name, id, .. } => {
-            Ok(MirExpr::Variable {
-                name: name.clone(),
-                ty: Type::Unit,
-                id: *id,
-            })
-        }
+        Expr::Variable { name, id, .. } => Ok(MirExpr::Variable {
+            name: name.clone(),
+            ty: Type::Unit,
+            id: *id,
+        }),
 
         Expr::Binary {
             left,
@@ -398,12 +424,7 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::Unary {
-            op,
-            expr,
-            id,
-            ..
-        } => {
+        Expr::Unary { op, expr, id, .. } => {
             let mir_operand = Box::new(lower_expression(expr)?);
             let mir_op = map_unary_op(op);
 
@@ -459,7 +480,13 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::If { condition, then_branch, else_branch, id, .. } => {
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            id,
+            ..
+        } => {
             let mir_condition = Box::new(lower_expression(condition)?);
             let mir_then = Box::new(lower_expression(then_branch)?);
             let mir_else = Box::new(lower_expression(else_branch)?);
@@ -473,7 +500,9 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::Index { array, index, id, .. } => {
+        Expr::Index {
+            array, index, id, ..
+        } => {
             let mir_array = Box::new(lower_expression(array)?);
             let mir_index = Box::new(lower_expression(index)?);
 
@@ -485,7 +514,9 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::Assign { target, value, id, .. } => {
+        Expr::Assign {
+            target, value, id, ..
+        } => {
             let mir_value = lower_expression(value)?;
             if let Expr::Variable { name, .. } = target.as_ref() {
                 Ok(MirExpr::Block {
@@ -520,7 +551,9 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             }
         }
 
-        Expr::MemberAccess { object, member, id, .. } => {
+        Expr::MemberAccess {
+            object, member, id, ..
+        } => {
             let mir_obj = lower_expression(object)?;
             if let MirExpr::Variable { name, ty, .. } = &mir_obj {
                 Ok(MirExpr::Variable {
@@ -539,7 +572,11 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
 
         Expr::Pipeline { stages, id: _, .. } => {
             if stages.is_empty() {
-                return Ok(MirExpr::Literal { value: Literal::Null, ty: Type::Unit, id: fresh_node_id() });
+                return Ok(MirExpr::Literal {
+                    value: Literal::Null,
+                    ty: Type::Unit,
+                    id: fresh_node_id(),
+                });
             }
             let mut result = lower_expression(&stages[0])?;
             for stage in &stages[1..] {
@@ -554,7 +591,9 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             Ok(result)
         }
 
-        Expr::Lambda { params, body, id, .. } => {
+        Expr::Lambda {
+            params, body, id, ..
+        } => {
             let param_names = params.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
             let mir_body = Box::new(lower_expression(body)?);
             Ok(MirExpr::Lambda {
@@ -578,7 +617,12 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
             })
         }
 
-        Expr::Match { scrutinee, arms, id: _, .. } => {
+        Expr::Match {
+            scrutinee,
+            arms,
+            id: _,
+            ..
+        } => {
             // Lower match expression to nested if-else chain
             let mir_scrutinee = lower_expression(scrutinee)?;
 
@@ -629,73 +673,67 @@ pub fn lower_expression(expr: &Expr) -> Result<MirExpr> {
 
             Ok(result.unwrap_or(mir_scrutinee))
         }
-
     }
 }
 
 /// Lower a literal value
 fn lower_literal(literal: &nevermind_ast::expr::Literal) -> Result<MirExpr> {
     Ok(match literal {
-        nevermind_ast::expr::Literal::Integer(value, _) => {
-            MirExpr::Literal {
-                value: Literal::Int(*value),
-                ty: Type::Int,
-                id: fresh_node_id(),
-            }
-        }
-        nevermind_ast::expr::Literal::Float(value, _) => {
-            MirExpr::Literal {
-                value: Literal::Float(*value),
-                ty: Type::Float,
-                id: fresh_node_id(),
-            }
-        }
-        nevermind_ast::expr::Literal::String(value, _) => {
-            MirExpr::Literal {
-                value: Literal::String(value.clone()),
-                ty: Type::String,
-                id: fresh_node_id(),
-            }
-        }
-        nevermind_ast::expr::Literal::Boolean(value, _) => {
-            MirExpr::Literal {
-                value: Literal::Bool(*value),
-                ty: Type::Bool,
-                id: fresh_node_id(),
-            }
-        }
-        nevermind_ast::expr::Literal::Null(_) => {
-            MirExpr::Literal {
-                value: Literal::Null,
-                ty: Type::Null,
-                id: fresh_node_id(),
-            }
-        }
-        nevermind_ast::expr::Literal::Char(_, _) => {
-            MirExpr::Literal {
-                value: Literal::Int(0),
-                ty: Type::Int,
-                id: fresh_node_id(),
-            }
-        }
+        nevermind_ast::expr::Literal::Integer(value, _) => MirExpr::Literal {
+            value: Literal::Int(*value),
+            ty: Type::Int,
+            id: fresh_node_id(),
+        },
+        nevermind_ast::expr::Literal::Float(value, _) => MirExpr::Literal {
+            value: Literal::Float(*value),
+            ty: Type::Float,
+            id: fresh_node_id(),
+        },
+        nevermind_ast::expr::Literal::String(value, _) => MirExpr::Literal {
+            value: Literal::String(value.clone()),
+            ty: Type::String,
+            id: fresh_node_id(),
+        },
+        nevermind_ast::expr::Literal::Boolean(value, _) => MirExpr::Literal {
+            value: Literal::Bool(*value),
+            ty: Type::Bool,
+            id: fresh_node_id(),
+        },
+        nevermind_ast::expr::Literal::Null(_) => MirExpr::Literal {
+            value: Literal::Null,
+            ty: Type::Null,
+            id: fresh_node_id(),
+        },
+        nevermind_ast::expr::Literal::Char(_, _) => MirExpr::Literal {
+            value: Literal::Int(0),
+            ty: Type::Int,
+            id: fresh_node_id(),
+        },
     })
 }
 
 /// Lower a statement inside an expression block
 pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
     match stmt {
-        Stmt::Let { name, value, type_annotation, .. } => {
+        Stmt::Export { stmt, .. } => lower_expr_stmt(stmt),
+        Stmt::Let {
+            id,
+            name,
+            value,
+            type_annotation,
+            ..
+        } => {
             let mir_value = lower_expression(value)?;
             let ty = type_annotation
                 .as_ref()
-                .and_then(|t| resolve_type_annotation(t))
+                .and_then(resolve_type_annotation)
                 .unwrap_or_else(|| mir_value.get_type().clone());
 
             Ok(MirExprStmt::Let {
                 name: name.clone(),
                 value: mir_value,
                 ty,
-                id: fresh_node_id(),
+                id: *id,
             })
         }
 
@@ -704,13 +742,23 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
             Ok(MirExprStmt::Expr(mir_expr))
         }
 
-        Stmt::Function { name: _, params: _, body, .. } => {
+        Stmt::Function {
+            name: _,
+            params: _,
+            body,
+            ..
+        } => {
             // Nested function definitions: just lower the body as an expression
             let mir_body = lower_expression(body)?;
             Ok(MirExprStmt::Expr(mir_body))
         }
 
-        Stmt::If { condition, then_branch, else_branch, .. } => {
+        Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
             let mir_cond = lower_expression(condition)?;
             let mir_then = lower_expr_stmts(then_branch)?;
             let mir_else = match else_branch {
@@ -725,7 +773,9 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
             })
         }
 
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             let mir_cond = lower_expression(condition)?;
             let mir_body = lower_expr_stmts(body)?;
             Ok(MirExprStmt::While {
@@ -735,7 +785,12 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
             })
         }
 
-        Stmt::For { variable, iter, body, .. } => {
+        Stmt::For {
+            variable,
+            iter,
+            body,
+            ..
+        } => {
             let var_name = pattern_to_variable_name(variable);
             let mir_iter = lower_expression(iter)?;
             let mir_body = lower_expr_stmts(body)?;
@@ -748,26 +803,24 @@ pub fn lower_expr_stmt(stmt: &Stmt) -> Result<MirExprStmt> {
         }
 
         Stmt::Return { value, .. } => {
-            let mir_value = value.as_ref().map(|v| lower_expression(v)).transpose()?;
+            let mir_value = value.as_ref().map(lower_expression).transpose()?;
             Ok(MirExprStmt::Return {
                 value: mir_value.map(Box::new),
                 id: fresh_node_id(),
             })
         }
 
-        Stmt::Break { .. } => {
-            Ok(MirExprStmt::Break {
-                id: fresh_node_id(),
-            })
-        }
+        Stmt::Break { .. } => Ok(MirExprStmt::Break {
+            id: fresh_node_id(),
+        }),
 
-        Stmt::Continue { .. } => {
-            Ok(MirExprStmt::Continue {
-                id: fresh_node_id(),
-            })
-        }
+        Stmt::Continue { .. } => Ok(MirExprStmt::Continue {
+            id: fresh_node_id(),
+        }),
 
-        Stmt::Match { scrutinee, arms, .. } => {
+        Stmt::Match {
+            scrutinee, arms, ..
+        } => {
             let mir_scrutinee = lower_expression(scrutinee)?;
 
             if arms.is_empty() {
@@ -904,7 +957,6 @@ fn map_logical_op(op: &nevermind_ast::op::LogicalOp) -> BinOp {
         nevermind_ast::op::LogicalOp::Or => BinOp::Or,
     }
 }
-
 
 /// Generate a fresh node ID
 fn fresh_node_id() -> NodeId {

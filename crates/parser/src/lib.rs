@@ -1,9 +1,11 @@
+#![allow(clippy::result_large_err)]
+
 //! Parser for Nevermind
 
-pub mod parser;
-pub mod expr_parser;
-pub mod pattern_parser;
-pub mod error;
+mod error;
+mod expr_parser;
+mod parser;
+mod pattern_parser;
 
-pub use parser::Parser;
 pub use error::ParseError;
+pub use parser::Parser;

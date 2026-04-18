@@ -3,16 +3,11 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use thiserror::Error;
-
-use nevermind_common::{Error, ErrorKind, Result, SourceLocation, Span};
-use super::token::{Token, TokenType, Keyword, Operator, Delimiter, LiteralType};
+use super::token::{Delimiter, Keyword, LiteralType, Operator, Token, TokenType};
+use nevermind_common::{Error, Result, SourceLocation, Span};
 
 /// The Nevermind lexer
 pub struct Lexer<'a> {
-    /// The source code being lexed
-    source: &'a str,
-
     /// The iterator over the source code
     chars: Peekable<Chars<'a>>,
 
@@ -33,7 +28,6 @@ impl<'a> Lexer<'a> {
     /// Create a new lexer for the given source code
     pub fn new(source: &'a str) -> Self {
         Self {
-            source,
             chars: source.chars().peekable(),
             location: SourceLocation::anonymous(),
             indent_stack: vec![0],
@@ -92,7 +86,7 @@ impl<'a> Lexer<'a> {
         self.skip_whitespace();
 
         // Check for EOF
-        if self.peek() == None {
+        if self.peek().is_none() {
             // Emit remaining dedents
             let dedent_count = self.indent_stack.len() - 1;
             if dedent_count > 0 {
@@ -211,7 +205,10 @@ impl<'a> Lexer<'a> {
                     self.pending_dedents += 1;
                 } else {
                     return Err(Error::lexical(
-                        format!("inconsistent indentation (expected {}, got {})", top, spaces),
+                        format!(
+                            "inconsistent indentation (expected {}, got {})",
+                            top, spaces
+                        ),
                         Span::point(self.location.clone()),
                     ));
                 }
@@ -242,7 +239,7 @@ impl<'a> Lexer<'a> {
             if let Some(c) = self.peek2() {
                 if c.is_ascii_digit() {
                     is_float = true;
-                    text.push(self.advance().unwrap());  // consume '.'
+                    text.push(self.advance().unwrap()); // consume '.'
                     while let Some(&c) = self.chars.peek() {
                         if c.is_ascii_digit() {
                             text.push(c);
@@ -258,7 +255,7 @@ impl<'a> Lexer<'a> {
         // Exponent part
         if self.peek() == Some('e') || self.peek() == Some('E') {
             is_float = true;
-            text.push(self.advance().unwrap());  // consume 'e' or 'E'
+            text.push(self.advance().unwrap()); // consume 'e' or 'E'
 
             if self.peek() == Some('+') || self.peek() == Some('-') {
                 text.push(self.advance().unwrap());
@@ -290,7 +287,7 @@ impl<'a> Lexer<'a> {
     /// Lex a string literal
     fn lex_string(&mut self) -> Result<Token> {
         let start = self.location.clone();
-        self.advance();  // consume opening '"'
+        self.advance(); // consume opening '"'
 
         let mut text = String::new();
 
@@ -333,7 +330,7 @@ impl<'a> Lexer<'a> {
     /// Lex a character literal
     fn lex_char(&mut self) -> Result<Token> {
         let start = self.location.clone();
-        self.advance();  // consume opening '\''
+        self.advance(); // consume opening '\''
 
         let c = if self.peek() == Some('\\') {
             self.advance();
@@ -359,7 +356,7 @@ impl<'a> Lexer<'a> {
             ));
         }
 
-        self.advance();  // consume closing '\''
+        self.advance(); // consume closing '\''
 
         let span = Span::new(start.clone(), self.location.clone());
 
@@ -393,7 +390,7 @@ impl<'a> Lexer<'a> {
                 for _ in 0..2 {
                     if let Some(c) = self.peek() {
                         if c.is_ascii_hexdigit() {
-                            code = code * 16 + c.to_digit(16).unwrap() as u32;
+                            code = code * 16 + c.to_digit(16).unwrap();
                             self.advance();
                         }
                     }
@@ -408,7 +405,7 @@ impl<'a> Lexer<'a> {
                         Span::point(self.location.clone()),
                     ));
                 }
-                self.advance();  // consume '{'
+                self.advance(); // consume '{'
 
                 let mut code = 0;
                 while let Some(&c) = self.chars.peek() {
@@ -416,7 +413,7 @@ impl<'a> Lexer<'a> {
                         break;
                     }
                     if c.is_ascii_hexdigit() {
-                        code = code * 16 + c.to_digit(16).unwrap() as u32;
+                        code = code * 16 + c.to_digit(16).unwrap();
                         self.advance();
                     } else {
                         return Err(Error::lexical(
@@ -432,7 +429,7 @@ impl<'a> Lexer<'a> {
                         Span::point(self.location.clone()),
                     ));
                 }
-                self.advance();  // consume '}'
+                self.advance(); // consume '}'
 
                 std::char::from_u32(code)
             }
@@ -466,54 +463,24 @@ impl<'a> Lexer<'a> {
         let span = Span::new(start, self.location.clone());
 
         // Check if it's an operator (like "and", "or", "not")
-        if let Some(op) = Operator::from_str(&text) {
-            return Ok(Token::new(
-                TokenType::Operator(op),
-                span,
-                text,
-            ));
+        if let Some(op) = Operator::lookup(&text) {
+            return Ok(Token::new(TokenType::Operator(op), span, text));
         }
 
         // Check if it's a keyword
-        if let Some(keyword) = Keyword::from_str(&text) {
-            return Ok(Token::new(
-                TokenType::Keyword(keyword),
-                span,
-                text,
-            ));
+        if let Some(keyword) = Keyword::lookup(&text) {
+            return Ok(Token::new(TokenType::Keyword(keyword), span, text));
         }
 
         // Check if it's a boolean literal
         match text.as_str() {
-            "true" => {
-                return Ok(Token::new(
-                    TokenType::Keyword(Keyword::True),
-                    span,
-                    text,
-                ))
-            }
-            "false" => {
-                return Ok(Token::new(
-                    TokenType::Keyword(Keyword::False),
-                    span,
-                    text,
-                ))
-            }
-            "null" => {
-                return Ok(Token::new(
-                    TokenType::Keyword(Keyword::Null),
-                    span,
-                    text,
-                ))
-            }
+            "true" => return Ok(Token::new(TokenType::Keyword(Keyword::True), span, text)),
+            "false" => return Ok(Token::new(TokenType::Keyword(Keyword::False), span, text)),
+            "null" => return Ok(Token::new(TokenType::Keyword(Keyword::Null), span, text)),
             _ => {}
         }
 
-        Ok(Token::new(
-            TokenType::Identifier,
-            span,
-            text,
-        ))
+        Ok(Token::new(TokenType::Identifier, span, text))
     }
 
     /// Lex an operator
@@ -527,7 +494,7 @@ impl<'a> Lexer<'a> {
         // Try 3-character operators first
         if let (Some(c1), Some(c2), Some(c3)) = (c1, c2, self.chars.clone().nth(2)) {
             let three_char = format!("{}{}{}", c1, c2, c3);
-            if let Some(op) = Operator::from_str(&three_char) {
+            if let Some(op) = Operator::lookup(&three_char) {
                 self.advance(); // consume c1
                 self.advance(); // consume c2
                 self.advance(); // consume c3
@@ -539,7 +506,7 @@ impl<'a> Lexer<'a> {
         // Try 2-character operators
         if let (Some(c1), Some(c2)) = (c1, c2) {
             let two_char = format!("{}{}", c1, c2);
-            if let Some(op) = Operator::from_str(&two_char) {
+            if let Some(op) = Operator::lookup(&two_char) {
                 self.advance(); // consume c1
                 self.advance(); // consume c2
                 let span = Span::new(start, self.location.clone());
@@ -550,7 +517,7 @@ impl<'a> Lexer<'a> {
         // Try 1-character operators
         if let Some(c) = c1 {
             let one_char = format!("{}", c);
-            if let Some(op) = Operator::from_str(&one_char) {
+            if let Some(op) = Operator::lookup(&one_char) {
                 self.advance(); // consume c1
                 let span = Span::new(start, self.location.clone());
                 return Ok(Some(Token::new(TokenType::Operator(op), span, one_char)));
@@ -566,16 +533,12 @@ impl<'a> Lexer<'a> {
         let c = self.advance().unwrap();
         let span = Span::new(start, self.location.clone());
 
-        Token::new(
-            TokenType::Delimiter(delimiter),
-            span,
-            c.to_string(),
-        )
+        Token::new(TokenType::Delimiter(delimiter), span, c.to_string())
     }
 
     /// Consume a line comment
     fn consume_line_comment(&mut self) {
-        self.advance();  // consume '#' or first '/'
+        self.advance(); // consume '#' or first '/'
 
         if self.peek() == Some('/') {
             self.advance();
@@ -591,8 +554,8 @@ impl<'a> Lexer<'a> {
 
     /// Consume a block comment
     fn consume_block_comment(&mut self) -> Result<()> {
-        self.advance();  // consume first '/'
-        self.advance();  // consume '*'
+        self.advance(); // consume first '/'
+        self.advance(); // consume '*'
 
         let mut depth = 1;
 
@@ -712,7 +675,7 @@ let z = 3
 "#;
 
         let mut lexer = Lexer::new(source);
-        let tokens = lexer.tokenize().unwrap();
+        let _tokens = lexer.tokenize().unwrap();
 
         // Should have tokens for indentation changes
         // (exact behavior depends on how we encode indentation in tokens)

@@ -14,6 +14,7 @@ fn parse_and_resolve(source: &str) -> Vec<nevermind_ast::Stmt> {
     stmts
 }
 
+#[allow(clippy::result_large_err)]
 fn type_check_program(source: &str) -> Result<Type, TypeError> {
     let stmts = parse_and_resolve(source);
     let mut checker = TypeChecker::new();
@@ -49,7 +50,8 @@ fn pipeline_stage_must_be_function() {
 
 #[test]
 fn pipeline_respects_generic_function_shape() {
-    let source = "fn identity(x) do x end\nlet numbers = [1, 2, 3]\nlet piped = numbers |> identity\npiped";
+    let source =
+        "fn identity(x) do x end\nlet numbers = [1, 2, 3]\nlet piped = numbers |> identity\npiped";
     let ty = type_check_program(source).expect("expected pipeline to type check");
     assert!(!matches!(ty, Type::Unit));
 }

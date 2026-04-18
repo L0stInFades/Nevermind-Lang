@@ -1,12 +1,19 @@
 //! Statement nodes
 
+use crate::expr::{Expr, Parameter};
 use crate::{NodeId, Pattern, TypeAnnotation};
-use crate::expr::{Expr, Parameter, Literal};
 use nevermind_common::Span;
 
 /// A statement
 #[derive(Debug, Clone)]
 pub enum Stmt {
+    /// Explicit export of a top-level declaration
+    Export {
+        id: NodeId,
+        stmt: Box<Stmt>,
+        span: Span,
+    },
+
     /// Variable declaration (let or var)
     Let {
         id: NodeId,
@@ -78,23 +85,13 @@ pub enum Stmt {
     },
 
     /// Break statement
-    Break {
-        id: NodeId,
-        span: Span,
-    },
+    Break { id: NodeId, span: Span },
 
     /// Continue statement
-    Continue {
-        id: NodeId,
-        span: Span,
-    },
+    Continue { id: NodeId, span: Span },
 
     /// Expression statement (expression evaluated for side effects)
-    ExprStmt {
-        id: NodeId,
-        expr: Expr,
-        span: Span,
-    },
+    ExprStmt { id: NodeId, expr: Expr, span: Span },
 
     /// Import statement
     Import {
@@ -142,6 +139,7 @@ impl Stmt {
     /// Get the span of this statement
     pub fn span(&self) -> &Span {
         match self {
+            Stmt::Export { span, .. } => span,
             Stmt::Let { span, .. } => span,
             Stmt::Function { span, .. } => span,
             Stmt::TypeAlias { span, .. } => span,

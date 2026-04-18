@@ -2,11 +2,11 @@
 
 use nevermind_common::Span;
 
+use nevermind_lexer::token::{Delimiter, Keyword, LiteralType};
 use nevermind_lexer::TokenType;
-use nevermind_lexer::token::{Keyword, Delimiter, LiteralType};
 
-use nevermind_ast::{Pattern, Literal};
 use nevermind_ast::pattern::StructPatternField;
+use nevermind_ast::{Literal, Pattern};
 
 use super::error::{ParseError, ParseResult};
 use super::Parser;
@@ -49,7 +49,10 @@ impl<'a> PatternParser<'a> {
                         break;
                     }
                 }
-                self.parser.consume_delimiter(Delimiter::RParen, "expected ')' to close constructor pattern")?;
+                self.parser.consume_delimiter(
+                    Delimiter::RParen,
+                    "expected ')' to close constructor pattern",
+                )?;
                 return Ok(Pattern::Constructor {
                     name: token.text,
                     args,
@@ -65,9 +68,12 @@ impl<'a> PatternParser<'a> {
         }
 
         // Check for keyword literal patterns (true, false, null)
-        if matches!(self.parser.peek_token_type(),
-            TokenType::Keyword(Keyword::True) | TokenType::Keyword(Keyword::False) | TokenType::Keyword(Keyword::Null))
-        {
+        if matches!(
+            self.parser.peek_token_type(),
+            TokenType::Keyword(Keyword::True)
+                | TokenType::Keyword(Keyword::False)
+                | TokenType::Keyword(Keyword::Null)
+        ) {
             return self.parse_literal_pattern(start);
         }
 
@@ -92,7 +98,10 @@ impl<'a> PatternParser<'a> {
         }
 
         Err(ParseError::new(
-            format!("expected pattern, found {:?}", self.parser.peek_token_type()),
+            format!(
+                "expected pattern, found {:?}",
+                self.parser.peek_token_type()
+            ),
             start,
         ))
     }
@@ -103,25 +112,21 @@ impl<'a> PatternParser<'a> {
         let span = token.span.clone();
 
         let literal = match token.kind {
-            TokenType::Literal(lit_type) => {
-                match lit_type {
-                    LiteralType::Integer => {
-                        let value = token.text.parse::<i64>().unwrap_or(0);
-                        Literal::Integer(value, span)
-                    }
-                    LiteralType::Float => {
-                        let value = token.text.parse::<f64>().unwrap_or(0.0);
-                        Literal::Float(value, span)
-                    }
-                    LiteralType::String => {
-                        Literal::String(token.text, span)
-                    }
-                    LiteralType::Char => {
-                        let c = token.text.chars().next().unwrap_or('\0');
-                        Literal::Char(c, span)
-                    }
+            TokenType::Literal(lit_type) => match lit_type {
+                LiteralType::Integer => {
+                    let value = token.text.parse::<i64>().unwrap_or(0);
+                    Literal::Integer(value, span)
                 }
-            }
+                LiteralType::Float => {
+                    let value = token.text.parse::<f64>().unwrap_or(0.0);
+                    Literal::Float(value, span)
+                }
+                LiteralType::String => Literal::String(token.text, span),
+                LiteralType::Char => {
+                    let c = token.text.chars().next().unwrap_or('\0');
+                    Literal::Char(c, span)
+                }
+            },
             TokenType::Keyword(Keyword::True) => Literal::Boolean(true, span),
             TokenType::Keyword(Keyword::False) => Literal::Boolean(false, span),
             TokenType::Keyword(Keyword::Null) => Literal::Null(span),
@@ -151,7 +156,8 @@ impl<'a> PatternParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::RParen, "expected ')' to close tuple pattern")?;
+        self.parser
+            .consume_delimiter(Delimiter::RParen, "expected ')' to close tuple pattern")?;
 
         Ok(Pattern::Tuple {
             patterns,
@@ -167,9 +173,13 @@ impl<'a> PatternParser<'a> {
             patterns.push(self.parse_pattern()?);
 
             // Check for | (list cons pattern)
-            if self.parser.match_operator(nevermind_lexer::token::Operator::BitOr) {
+            if self
+                .parser
+                .match_operator(nevermind_lexer::token::Operator::BitOr)
+            {
                 let tail = self.parse_pattern()?;
-                self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' to close list pattern")?;
+                self.parser
+                    .consume_delimiter(Delimiter::RBracket, "expected ']' to close list pattern")?;
 
                 return Ok(Pattern::ListCons {
                     head: Box::new(patterns.pop().unwrap()),
@@ -183,7 +193,8 @@ impl<'a> PatternParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::RBracket, "expected ']' to close list pattern")?;
+        self.parser
+            .consume_delimiter(Delimiter::RBracket, "expected ']' to close list pattern")?;
 
         Ok(Pattern::List {
             patterns,
@@ -193,7 +204,9 @@ impl<'a> PatternParser<'a> {
 
     /// Parse a struct pattern { field1: pat1, field2: pat2, ... }
     fn parse_struct_pattern(&mut self, start: Span) -> ParseResult<Pattern> {
-        let name = self.parser.consume_identifier("expected struct name in struct pattern")?;
+        let name = self
+            .parser
+            .consume_identifier("expected struct name in struct pattern")?;
 
         let mut fields = Vec::new();
 
@@ -221,7 +234,8 @@ impl<'a> PatternParser<'a> {
             }
         }
 
-        self.parser.consume_delimiter(Delimiter::RBrace, "expected '}' to close struct pattern")?;
+        self.parser
+            .consume_delimiter(Delimiter::RBrace, "expected '}' to close struct pattern")?;
 
         Ok(Pattern::Struct {
             name,
