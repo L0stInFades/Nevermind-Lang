@@ -1,15 +1,45 @@
 //! Main type checker implementing Hindley-Milner type inference
 
-use ::nevermind_ast::Expr;
-use ::nevermind_ast::Stmt;
-use ::nevermind_ast::Pattern;
-use ::nevermind_ast::Literal;
-use crate::types::Type;
-use crate::ty::TypeScheme;
 use crate::environment::TypeEnvironment;
-use crate::unification::Unifier;
 use crate::error::{Result, TypeError};
+use crate::ty::TypeScheme;
+use crate::types::Type;
+use crate::unification::Unifier;
 use crate::TypeContext;
+use ::nevermind_ast::Expr;
+use ::nevermind_ast::Literal;
+use ::nevermind_ast::Pattern;
+use ::nevermind_ast::Stmt;
+use nevermind_common::Span;
+
+#[derive(Clone)]
+struct FlowInfo {
+    ty: Type,
+    always_returns: bool,
+}
+
+impl FlowInfo {
+    fn new(ty: Type) -> Self {
+        Self {
+            ty,
+            always_returns: false,
+        }
+    }
+
+    fn returning(ty: Type) -> Self {
+        Self {
+            ty,
+            always_returns: true,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct FunctionContext {
+    name: String,
+    return_type: Type,
+    return_annotation_span: Option<Span>,
+}
 
 /// The main type checker
 pub struct TypeChecker {
@@ -21,6 +51,9 @@ pub struct TypeChecker {
 
     /// Unifier (for type inference)
     unifier: Unifier,
+
+    /// Stack of functions currently being checked.
+    function_contexts: Vec<FunctionContext>,
 }
 
 impl TypeChecker {
@@ -30,6 +63,7 @@ impl TypeChecker {
             env: TypeEnvironment::with_predefined(),
             ctx: TypeContext::new(),
             unifier: Unifier::new(),
+            function_contexts: Vec::new(),
         }
     }
 
@@ -56,26 +90,30 @@ impl TypeChecker {
 
     /// Type check a statement
     fn check_statement(&mut self, stmt: &Stmt) -> Result<Type> {
+        Ok(self.check_statement_with_flow(stmt)?.ty)
+    }
+
+    fn check_statement_with_flow(&mut self, stmt: &Stmt) -> Result<FlowInfo> {
         match stmt {
-            Stmt::Let { name, is_mutable, value, span, .. } => {
-                // Infer the type of the initializer
+            Stmt::Export { stmt, .. } => self.check_statement_with_flow(stmt),
+
+            Stmt::Let { name, value, .. } => {
                 let ty = self.infer_expression(value)?;
-
-                // Get the free variables in the environment
                 let free_vars = self.env.free_vars();
-
-                // Generalize the type
                 let scheme = TypeScheme::generalize(ty, &free_vars);
-
-                // Add the binding to the environment
                 self.env.insert(name.clone(), scheme)?;
-
-                Ok(Type::Unit)
+                Ok(FlowInfo::new(Type::Unit))
             }
 
-            Stmt::Function { name, params, body, return_type: ret_ann, span: _, .. } => {
-                // Resolve parameter types from annotations or create fresh variables
-                let param_types: Vec<Type> = params.iter()
+            Stmt::Function {
+                name,
+                params,
+                body,
+                return_type: ret_ann,
+                ..
+            } => {
+                let param_types: Vec<Type> = params
+                    .iter()
                     .map(|p| {
                         if let Some(ann) = &p.type_annotation {
                             self.resolve_type_annotation(ann)
@@ -86,7 +124,6 @@ impl TypeChecker {
                     })
                     .collect();
 
-                // Resolve return type from annotation or create fresh variable
                 let declared_return = if let Some(ann) = ret_ann {
                     self.resolve_type_annotation(ann)
                 } else {
@@ -94,104 +131,125 @@ impl TypeChecker {
                     Type::Var(crate::types::TypeVarRef::new(var.id()))
                 };
 
-                // Snapshot free vars BEFORE pre-declaring the function so that
-                // the function's own type variables are not treated as "free in
-                // the environment" during generalization (which would prevent them
-                // from being quantified and make every function monomorphic).
                 let free_vars_before = self.env.free_vars();
-
-                // Pre-declare function with its type (enables recursion)
-                // Use insert_or_update to allow shadowing of built-in functions
-                let func_type = Type::Function(
-                    param_types.clone(),
-                    Box::new(declared_return.clone()),
-                );
+                let func_type =
+                    Type::Function(param_types.clone(), Box::new(declared_return.clone()));
                 let func_scheme = TypeScheme::monomorphic(func_type.clone());
                 self.env.insert_or_update(name.clone(), func_scheme);
 
-                // Enter a new scope for the function body
                 self.env.enter_scope();
-
-                // Bind parameters
                 for (i, param) in params.iter().enumerate() {
                     let scheme = TypeScheme::monomorphic(param_types[i].clone());
                     self.env.insert(param.name.clone(), scheme)?;
                 }
 
-                // Type check the body
-                let _return_type = self.infer_expression(body)?;
+                self.function_contexts.push(FunctionContext {
+                    name: name.clone(),
+                    return_type: declared_return.clone(),
+                    return_annotation_span: ret_ann.as_ref().map(|ann| ann.span.clone()),
+                });
+                let body_result = self.infer_expression_with_flow(body);
+                self.function_contexts.pop();
+                let body_result = body_result?;
 
-                // Exit the function scope
                 self.env.exit_scope()?;
 
-                // Generalize using the pre-snapshot free vars so that the
-                // function's own type variables get properly quantified.
+                if !body_result.always_returns {
+                    let expected_return = self.unifier.apply(&declared_return);
+                    let body_ty = self.unifier.apply(&body_result.ty);
+
+                    if body_ty == Type::Unit && expected_return != Type::Unit && !expected_return.is_var() {
+                        let mut error = TypeError::missing_return(
+                            name.clone(),
+                            expected_return.clone(),
+                            ast_helpers::get_span(body),
+                        );
+                        if let Some(span) = ret_ann.as_ref().map(|ann| ann.span.clone()) {
+                            error = error.with_context(
+                                format!(
+                                    "function '{}' declares return type {}",
+                                    name,
+                                    expected_return.display_name()
+                                ),
+                                Some(span),
+                            );
+                        }
+                        return Err(error);
+                    }
+
+                    self.unifier
+                        .unify(&body_result.ty, &declared_return, &ast_helpers::get_span(body))
+                        .map_err(|_| {
+                            self.return_type_mismatch_error(
+                                name,
+                                ret_ann.as_ref().map(|ann| ann.span.clone()),
+                                &declared_return,
+                                &body_result.ty,
+                                ast_helpers::get_span(body),
+                            )
+                        })?;
+                }
+
                 let scheme = TypeScheme::generalize(func_type, &free_vars_before);
                 self.env.insert_or_update(name.clone(), scheme);
 
-                Ok(Type::Unit)
+                Ok(FlowInfo::new(Type::Unit))
             }
 
-            Stmt::TypeAlias { .. } => {
-                // TODO: Handle type aliases
-                Ok(Type::Unit)
-            }
+            Stmt::TypeAlias { .. } => Ok(FlowInfo::new(Type::Unit)),
 
-            Stmt::If { condition, then_branch, else_branch, span, .. } => {
-                // Type check condition
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+                span,
+                ..
+            } => {
                 let cond_ty = self.infer_expression(condition)?;
-                self.unifier.unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
+                self.unifier
+                    .unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
 
-                // Type check then branch
                 self.env.enter_scope();
-                let mut then_ty = Type::Unit;
-                for stmt in then_branch {
-                    then_ty = self.check_statement(stmt)?;
-                }
+                let then_result = self.check_block_with_flow(then_branch)?;
                 self.env.exit_scope()?;
 
-                // Type check else branch if present
-                let else_ty = if let Some(else_branch) = else_branch {
+                if let Some(else_branch) = else_branch {
                     self.env.enter_scope();
-                    let mut ty = Type::Unit;
-                    for stmt in else_branch {
-                        ty = self.check_statement(stmt)?;
-                    }
+                    let else_result = self.check_block_with_flow(else_branch)?;
                     self.env.exit_scope()?;
-                    Some(ty)
-                } else {
-                    None
-                };
 
-                // If there's an else branch, unify then and else types
-                if let Some(else_ty) = else_ty {
-                    self.unifier.unify(&then_ty, &else_ty, span)?;
-                    Ok(then_ty)
+                    self.unifier.unify(&then_result.ty, &else_result.ty, span)?;
+                    Ok(FlowInfo {
+                        ty: self.unifier.apply(&then_result.ty),
+                        always_returns: then_result.always_returns && else_result.always_returns,
+                    })
                 } else {
-                    Ok(Type::Unit)
+                    Ok(FlowInfo::new(Type::Unit))
                 }
             }
 
-            Stmt::While { condition, body, .. } => {
-                // Type check condition
+            Stmt::While {
+                condition, body, ..
+            } => {
                 let cond_ty = self.infer_expression(condition)?;
-                self.unifier.unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
+                self.unifier
+                    .unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
 
-                // Type check body
                 self.env.enter_scope();
-                for stmt in body {
-                    self.check_statement(stmt)?;
-                }
+                self.check_block_with_flow(body)?;
                 self.env.exit_scope()?;
 
-                Ok(Type::Unit)
+                Ok(FlowInfo::new(Type::Unit))
             }
 
-            Stmt::For { variable, iter, body, .. } => {
-                // Type check iterator
+            Stmt::For {
+                variable,
+                iter,
+                body,
+                ..
+            } => {
                 let iter_ty = self.infer_expression(iter)?;
 
-                // Expect a list type
                 let elem_ty = if let Type::List(elem) = iter_ty {
                     *elem
                 } else {
@@ -202,77 +260,91 @@ impl TypeChecker {
                     ));
                 };
 
-                // Type check body
                 self.env.enter_scope();
-
-                // Bind loop variable (check_pattern handles Variable declaration)
                 self.check_pattern(variable, &elem_ty)?;
-
-                for stmt in body {
-                    self.check_statement(stmt)?;
-                }
-
+                self.check_block_with_flow(body)?;
                 self.env.exit_scope()?;
 
-                Ok(Type::Unit)
+                Ok(FlowInfo::new(Type::Unit))
             }
 
-            Stmt::Match { scrutinee, arms, span, .. } => {
-                // Type check scrutinee
+            Stmt::Match {
+                scrutinee,
+                arms,
+                span,
+                ..
+            } => {
                 let scrutinee_ty = self.infer_expression(scrutinee)?;
-
-                // Type check each arm
-                let mut arm_types = Vec::new();
+                let mut arm_results = Vec::new();
 
                 for arm in arms {
                     self.env.enter_scope();
-
-                    // Type check pattern
                     self.check_pattern(&arm.pattern, &scrutinee_ty)?;
 
-                    // Type check guard if present
                     if let Some(guard) = &arm.guard {
                         let guard_ty = self.infer_expression(guard)?;
-                        self.unifier.unify(&guard_ty, &Type::Bool, &ast_helpers::get_span(guard))?;
+                        self.unifier.unify(
+                            &guard_ty,
+                            &Type::Bool,
+                            &ast_helpers::get_span(guard),
+                        )?;
                     }
 
-                    // Type check body
-                    let arm_ty = self.infer_expression(&arm.body)?;
-                    arm_types.push(arm_ty);
-
+                    let arm_result = self.infer_expression_with_flow(&arm.body)?;
+                    arm_results.push(arm_result);
                     self.env.exit_scope()?;
                 }
 
-                // All arms must have the same type
-                if let Some(first_ty) = arm_types.first() {
-                    for ty in &arm_types[1..] {
-                        self.unifier.unify(first_ty, ty, span)?;
+                if let Some(first_result) = arm_results.first() {
+                    for result in &arm_results[1..] {
+                        self.unifier.unify(&first_result.ty, &result.ty, span)?;
                     }
+                    Ok(FlowInfo {
+                        ty: self.unifier.apply(&first_result.ty),
+                        always_returns: arm_results.iter().all(|result| result.always_returns),
+                    })
+                } else {
+                    Ok(FlowInfo::new(Type::Unit))
                 }
-
-                Ok(arm_types.into_iter().next().unwrap_or(Type::Unit))
             }
 
-            Stmt::Return { value, .. } => {
-                // TODO: Check that return type matches function signature
-                if let Some(value) = value {
-                    self.infer_expression(value)?;
+            Stmt::Return { value, span, .. } => {
+                let function = self.function_contexts.last().cloned();
+                let value_ty = match value {
+                    Some(value) => self.infer_expression(value)?,
+                    None => Type::Unit,
+                };
+
+                if let Some(function) = function {
+                    self.unifier
+                        .unify(&value_ty, &function.return_type, span)
+                        .map_err(|_| {
+                            let expected = self.unifier.apply(&function.return_type);
+                            if value.is_none() && expected != Type::Unit && !expected.is_var() {
+                                self.missing_return_value_error(&function, expected, span.clone())
+                            } else {
+                                self.return_type_mismatch_for_function(
+                                    &function,
+                                    &function.return_type,
+                                    &value_ty,
+                                    span.clone(),
+                                )
+                            }
+                        })?;
+
+                    Ok(FlowInfo::returning(self.unifier.apply(&function.return_type)))
+                } else {
+                    Ok(FlowInfo::returning(Type::Unit))
                 }
-                Ok(Type::Unit)
             }
 
-            Stmt::Break { .. } | Stmt::Continue { .. } => {
-                Ok(Type::Unit)
-            }
+            Stmt::Break { .. } | Stmt::Continue { .. } => Ok(FlowInfo::new(Type::Unit)),
 
-            Stmt::ExprStmt { expr, .. } => {
-                self.infer_expression(expr)
-            }
+            Stmt::ExprStmt { expr, .. } => self.infer_expression_with_flow(expr),
 
-            Stmt::Import { module, symbols, .. } => {
-                // Register each imported name with a maximally-polymorphic type
-                // scheme (∀a. a).  This lets the type checker accept any usage
-                // of the name; the Python runtime enforces the actual types.
+            Stmt::Import {
+                module, symbols, ..
+            } => {
                 let register = |env: &mut TypeEnvironment, ctx: &mut TypeContext, name: &str| {
                     let var = ctx.fresh_var();
                     let scheme = crate::ty::TypeScheme::new(
@@ -289,28 +361,24 @@ impl TypeChecker {
                         }
                     }
                     None => {
-                        // `use "module"` — register the last path segment as
-                        // the namespace name (e.g. `use "http/server"` → `server`).
-                        let namespace = module
-                            .split('/')
-                            .next_back()
-                            .unwrap_or(module.as_str());
+                        let namespace = module.split('/').next_back().unwrap_or(module.as_str());
                         register(&mut self.env, &mut self.ctx, namespace);
                     }
                 }
 
-                Ok(Type::Unit)
+                Ok(FlowInfo::new(Type::Unit))
             }
 
-            Stmt::Class { .. } => {
-                // TODO: Handle classes
-                Ok(Type::Unit)
-            }
+            Stmt::Class { .. } => Ok(FlowInfo::new(Type::Unit)),
         }
     }
 
     /// Infer the type of an expression
     fn infer_expression(&mut self, expr: &Expr) -> Result<Type> {
+        Ok(self.infer_expression_with_flow(expr)?.ty)
+    }
+
+    fn infer_expression_with_flow(&mut self, expr: &Expr) -> Result<FlowInfo> {
         match expr {
             Expr::Literal(lit) => {
                 let ty = match lit {
@@ -321,52 +389,75 @@ impl TypeChecker {
                     Literal::Boolean(_, _) => Type::Bool,
                     Literal::Null(_) => Type::Null,
                 };
-                Ok(ty)
+                Ok(FlowInfo::new(ty))
             }
 
             Expr::Variable { name, span, .. } => {
                 // Look up the variable in the environment
                 if let Some(scheme) = self.env.lookup(name) {
                     // Instantiate the type scheme
-                    Ok(scheme.instantiate(&mut self.ctx))
+                    Ok(FlowInfo::new(scheme.instantiate(&mut self.ctx)))
                 } else {
                     Err(TypeError::undefined_variable(name.clone(), span.clone()))
                 }
             }
 
-            Expr::Binary { left, op, right, span, id: _ } => {
+            Expr::Binary {
+                left,
+                right,
+                span,
+                id: _,
+                ..
+            } => {
                 let left_ty = self.infer_expression(left)?;
                 let right_ty = self.infer_expression(right)?;
 
                 // Type check based on operator
                 self.unifier.unify(&left_ty, &right_ty, span)?;
                 // Numeric operators return the same type as operands
-                Ok(left_ty.clone())
+                Ok(FlowInfo::new(left_ty.clone()))
             }
 
-            Expr::Comparison { left, op, right, span, id: _ } => {
+            Expr::Comparison {
+                left,
+                right,
+                span,
+                id: _,
+                ..
+            } => {
                 let left_ty = self.infer_expression(left)?;
                 let right_ty = self.infer_expression(right)?;
 
                 self.unifier.unify(&left_ty, &right_ty, span)?;
-                Ok(Type::Bool)
+                Ok(FlowInfo::new(Type::Bool))
             }
 
-            Expr::Logical { left, op, right, span, id: _ } => {
+            Expr::Logical {
+                left,
+                right,
+                span,
+                id: _,
+                ..
+            } => {
                 let left_ty = self.infer_expression(left)?;
                 let right_ty = self.infer_expression(right)?;
 
                 self.unifier.unify(&left_ty, &Type::Bool, span)?;
                 self.unifier.unify(&right_ty, &Type::Bool, span)?;
-                Ok(Type::Bool)
+                Ok(FlowInfo::new(Type::Bool))
             }
 
-            Expr::Unary { op, expr, span, id: _ } => {
+            Expr::Unary { expr, id: _, .. } => {
                 let expr_ty = self.infer_expression(expr)?;
-                Ok(expr_ty)
+                Ok(FlowInfo::new(expr_ty))
             }
 
-            Expr::Call { callee, args, span, id: _ } => {
+            Expr::Call {
+                callee,
+                args,
+                span,
+                id: _,
+            } => {
                 // Infer the type of the callee
                 let callee_ty = self.infer_expression(callee)?;
 
@@ -392,10 +483,14 @@ impl TypeChecker {
                     self.unifier.unify(&arg_ty, &arg_types[i], span)?;
                 }
 
-                Ok(return_var)
+                Ok(FlowInfo::new(return_var))
             }
 
-            Expr::Pipeline { stages, span, id: _ } => {
+            Expr::Pipeline {
+                stages,
+                span,
+                id: _,
+            } => {
                 // Type check each stage
                 let mut current_ty = self.infer_expression(&stages[0])?;
 
@@ -406,7 +501,7 @@ impl TypeChecker {
                     let var = self.ctx.fresh_var();
                     let expected_func = Type::Function(
                         vec![current_ty.clone()],
-                        Box::new(Type::Var(crate::types::TypeVarRef::new(var.id())))
+                        Box::new(Type::Var(crate::types::TypeVarRef::new(var.id()))),
                     );
 
                     self.unifier.unify(&stage_ty, &expected_func, span)?;
@@ -415,7 +510,7 @@ impl TypeChecker {
                     current_ty = Type::Var(crate::types::TypeVarRef::new(var.id()));
                 }
 
-                Ok(current_ty)
+                Ok(FlowInfo::new(current_ty))
             }
 
             Expr::Lambda { params, body, .. } => {
@@ -423,7 +518,8 @@ impl TypeChecker {
                 self.env.enter_scope();
 
                 // Create fresh type variables for parameters
-                let param_types: Vec<Type> = params.iter()
+                let param_types: Vec<Type> = params
+                    .iter()
                     .map(|_| {
                         let var = self.ctx.fresh_var();
                         Type::Var(crate::types::TypeVarRef::new(var.id()))
@@ -442,42 +538,50 @@ impl TypeChecker {
                 // Exit scope
                 self.env.exit_scope()?;
 
-                Ok(Type::Function(param_types, Box::new(body_ty)))
+                Ok(FlowInfo::new(Type::Function(param_types, Box::new(body_ty))))
             }
 
-            Expr::If { condition, then_branch, else_branch, .. } => {
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 // Type check condition
                 let cond_ty = self.infer_expression(condition)?;
-                self.unifier.unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
+                self.unifier
+                    .unify(&cond_ty, &Type::Bool, &ast_helpers::get_span(condition))?;
 
                 // Type check branches
-                let then_ty = self.infer_expression(then_branch)?;
-                let else_ty = self.infer_expression(else_branch)?;
+                let then_result = self.infer_expression_with_flow(then_branch)?;
+                let else_result = self.infer_expression_with_flow(else_branch)?;
 
                 // Unify branch types
-                self.unifier.unify(&then_ty, &else_ty, &ast_helpers::get_span(expr))?;
+                self.unifier
+                    .unify(&then_result.ty, &else_result.ty, &ast_helpers::get_span(expr))?;
 
-                Ok(then_ty)
+                Ok(FlowInfo {
+                    ty: self.unifier.apply(&then_result.ty),
+                    always_returns: then_result.always_returns && else_result.always_returns,
+                })
             }
 
             Expr::Block { statements, .. } => {
                 self.env.enter_scope();
 
-                let mut ty = Type::Unit;
-                for stmt in statements {
-                    ty = self.check_statement(stmt)?;
-                }
-
+                let result = self.check_block_with_flow(statements)?;
                 self.env.exit_scope()?;
 
-                Ok(ty)
+                Ok(result)
             }
 
             Expr::List { elements, .. } => {
                 if elements.is_empty() {
                     // Empty list has a fresh type variable
                     let var = self.ctx.fresh_var();
-                    Ok(Type::List(Box::new(Type::Var(crate::types::TypeVarRef::new(var.id())))))
+                    Ok(FlowInfo::new(Type::List(Box::new(Type::Var(
+                        crate::types::TypeVarRef::new(var.id()),
+                    )))))
                 } else {
                     // Infer the type of the first element
                     let elem_ty = self.infer_expression(&elements[0])?;
@@ -485,10 +589,11 @@ impl TypeChecker {
                     // All elements must have the same type
                     for elem in &elements[1..] {
                         let ty = self.infer_expression(elem)?;
-                        self.unifier.unify(&elem_ty, &ty, &ast_helpers::get_span(elem))?;
+                        self.unifier
+                            .unify(&elem_ty, &ty, &ast_helpers::get_span(elem))?;
                     }
 
-                    Ok(Type::List(Box::new(elem_ty)))
+                    Ok(FlowInfo::new(Type::List(Box::new(elem_ty))))
                 }
             }
 
@@ -496,7 +601,9 @@ impl TypeChecker {
                 if entries.is_empty() {
                     // Empty map has a fresh type variable
                     let var = self.ctx.fresh_var();
-                    Ok(Type::Map(Box::new(Type::Var(crate::types::TypeVarRef::new(var.id())))))
+                    Ok(FlowInfo::new(Type::Map(Box::new(Type::Var(
+                        crate::types::TypeVarRef::new(var.id()),
+                    )))))
                 } else {
                     // Keys must be strings
                     // Values can be any type, but all must be the same
@@ -504,22 +611,26 @@ impl TypeChecker {
 
                     for (key, value) in entries {
                         let key_ty = self.infer_expression(key)?;
-                        self.unifier.unify(&key_ty, &Type::String, &ast_helpers::get_span(key))?;
+                        self.unifier
+                            .unify(&key_ty, &Type::String, &ast_helpers::get_span(key))?;
 
                         let ty = self.infer_expression(value)?;
-                        self.unifier.unify(&value_ty, &ty, &ast_helpers::get_span(value))?;
+                        self.unifier
+                            .unify(&value_ty, &ty, &ast_helpers::get_span(value))?;
                     }
 
-                    Ok(Type::Map(Box::new(value_ty)))
+                    Ok(FlowInfo::new(Type::Map(Box::new(value_ty))))
                 }
             }
 
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 // Type check scrutinee
                 let scrutinee_ty = self.infer_expression(scrutinee)?;
 
                 // Type check each arm
-                let mut arm_types = Vec::new();
+                let mut arm_results = Vec::new();
 
                 for arm in arms {
                     self.env.enter_scope();
@@ -530,24 +641,32 @@ impl TypeChecker {
                     // Type check guard if present
                     if let Some(guard) = &arm.guard {
                         let guard_ty = self.infer_expression(guard)?;
-                        self.unifier.unify(&guard_ty, &Type::Bool, &ast_helpers::get_span(guard))?;
+                        self.unifier.unify(
+                            &guard_ty,
+                            &Type::Bool,
+                            &ast_helpers::get_span(guard),
+                        )?;
                     }
 
                     // Type check body
-                    let arm_ty = self.infer_expression(&arm.body)?;
-                    arm_types.push(arm_ty);
+                    let arm_result = self.infer_expression_with_flow(&arm.body)?;
+                    arm_results.push(arm_result);
 
                     self.env.exit_scope()?;
                 }
 
                 // All arms must have the same type
-                if let Some(first_ty) = arm_types.first() {
-                    for ty in &arm_types[1..] {
-                        self.unifier.unify(first_ty, ty, &ast_helpers::get_span(expr))?;
+                if let Some(first_result) = arm_results.first() {
+                    for result in &arm_results[1..] {
+                        self.unifier
+                            .unify(&first_result.ty, &result.ty, &ast_helpers::get_span(expr))?;
                     }
-                    Ok(first_ty.clone())
+                    Ok(FlowInfo {
+                        ty: self.unifier.apply(&first_result.ty),
+                        always_returns: arm_results.iter().all(|result| result.always_returns),
+                    })
                 } else {
-                    Ok(Type::Unit)
+                    Ok(FlowInfo::new(Type::Unit))
                 }
             }
 
@@ -559,10 +678,12 @@ impl TypeChecker {
                 // Return the element type: if the array is a known List(T) return T,
                 // otherwise produce a fresh type variable (array type is still unknown).
                 match array_ty {
-                    Type::List(elem_ty) => Ok(*elem_ty),
+                    Type::List(elem_ty) => Ok(FlowInfo::new(*elem_ty)),
                     _ => {
                         let var = self.ctx.fresh_var();
-                        Ok(Type::Var(crate::types::TypeVarRef::new(var.id())))
+                        Ok(FlowInfo::new(Type::Var(crate::types::TypeVarRef::new(
+                            var.id(),
+                        ))))
                     }
                 }
             }
@@ -570,16 +691,96 @@ impl TypeChecker {
             Expr::Assign { target, value, .. } => {
                 let _target_ty = self.infer_expression(target)?;
                 let value_ty = self.infer_expression(value)?;
-                Ok(value_ty)
+                Ok(FlowInfo::new(value_ty))
             }
 
             Expr::MemberAccess { object, .. } => {
                 let _obj_ty = self.infer_expression(object)?;
                 // Return a fresh type variable since we don't know the member type
                 let var = self.ctx.fresh_var();
-                Ok(Type::Var(crate::types::TypeVarRef::new(var.id())))
+                Ok(FlowInfo::new(Type::Var(crate::types::TypeVarRef::new(
+                    var.id(),
+                ))))
             }
         }
+    }
+
+    fn check_block_with_flow(&mut self, stmts: &[Stmt]) -> Result<FlowInfo> {
+        let mut result = FlowInfo::new(Type::Unit);
+
+        for stmt in stmts {
+            let stmt_result = self.check_statement_with_flow(stmt)?;
+            if !result.always_returns {
+                result = stmt_result;
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn return_type_mismatch_error(
+        &self,
+        function: &str,
+        return_annotation_span: Option<Span>,
+        expected: &Type,
+        found: &Type,
+        span: Span,
+    ) -> TypeError {
+        let expected = self.unifier.apply(expected);
+        let found = self.unifier.apply(found);
+        let mut error = TypeError::return_type_mismatch(
+            function.to_string(),
+            expected.clone(),
+            found,
+            span,
+        );
+        if let Some(span) = return_annotation_span {
+            error = error.with_context(
+                format!(
+                    "function '{}' declares return type {}",
+                    function,
+                    expected.display_name()
+                ),
+                Some(span),
+            );
+        }
+        error
+    }
+
+    fn return_type_mismatch_for_function(
+        &self,
+        function: &FunctionContext,
+        expected: &Type,
+        found: &Type,
+        span: Span,
+    ) -> TypeError {
+        self.return_type_mismatch_error(
+            &function.name,
+            function.return_annotation_span.clone(),
+            expected,
+            found,
+            span,
+        )
+    }
+
+    fn missing_return_value_error(
+        &self,
+        function: &FunctionContext,
+        expected: Type,
+        span: Span,
+    ) -> TypeError {
+        let mut error = TypeError::missing_return_value(function.name.clone(), expected.clone(), span);
+        if let Some(span) = function.return_annotation_span.clone() {
+            error = error.with_context(
+                format!(
+                    "function '{}' declares return type {}",
+                    function.name,
+                    expected.display_name()
+                ),
+                Some(span),
+            );
+        }
+        error
     }
 
     /// Type check a pattern against an expected type
@@ -605,7 +806,11 @@ impl TypeChecker {
             Pattern::Tuple { patterns, .. } => {
                 if let Type::Tuple(elem_types) = expected_ty {
                     if patterns.len() != elem_types.len() {
-                        return Err(TypeError::arity_mismatch(elem_types.len(), patterns.len(), ast_helpers::get_span_pattern(pattern)));
+                        return Err(TypeError::arity_mismatch(
+                            elem_types.len(),
+                            patterns.len(),
+                            ast_helpers::get_span_pattern(pattern),
+                        ));
                     }
 
                     for (pat, ty) in patterns.iter().zip(elem_types.iter()) {
@@ -651,7 +856,7 @@ impl TypeChecker {
                 }
             }
 
-            Pattern::Struct { fields, .. } => {
+            Pattern::Struct { .. } => {
                 // TODO: Check struct patterns
                 Ok(())
             }
@@ -685,7 +890,7 @@ impl TypeChecker {
 
     /// Resolve an AST type annotation to a type-checker type
     fn resolve_type_annotation(&mut self, ann: &nevermind_ast::TypeAnnotation) -> Type {
-        use nevermind_ast::types::{Type as AstType, PrimitiveType as AstPrim};
+        use nevermind_ast::types::{PrimitiveType as AstPrim, Type as AstType};
         match &ann.kind {
             AstType::Primitive(prim) => match prim {
                 AstPrim::Int | AstPrim::Int32 | AstPrim::Int64 => Type::Int,
@@ -697,26 +902,33 @@ impl TypeChecker {
                 AstPrim::Unit => Type::Unit,
                 AstPrim::Null => Type::Null,
             },
-            AstType::Identifier(name) => {
-                match name.as_str() {
-                    "Int" => Type::Int,
-                    "Float" => Type::Float,
-                    "Bool" => Type::Bool,
-                    "String" => Type::String,
-                    "Unit" | "Void" => Type::Unit,
-                    _ => Type::User(name.clone()),
-                }
-            }
+            AstType::Identifier(name) => match name.as_str() {
+                "Int" => Type::Int,
+                "Float" => Type::Float,
+                "Bool" => Type::Bool,
+                "String" => Type::String,
+                "Unit" | "Void" => Type::Unit,
+                _ => Type::User(name.clone()),
+            },
             AstType::List(elem) => {
                 let elem_ty = self.resolve_type_annotation(elem);
                 Type::List(Box::new(elem_ty))
             }
             AstType::Tuple(elems) => {
-                let elem_tys: Vec<Type> = elems.iter().map(|e| self.resolve_type_annotation(e)).collect();
+                let elem_tys: Vec<Type> = elems
+                    .iter()
+                    .map(|e| self.resolve_type_annotation(e))
+                    .collect();
                 Type::Tuple(elem_tys)
             }
-            AstType::Function { params, return_type } => {
-                let param_tys: Vec<Type> = params.iter().map(|p| self.resolve_type_annotation(p)).collect();
+            AstType::Function {
+                params,
+                return_type,
+            } => {
+                let param_tys: Vec<Type> = params
+                    .iter()
+                    .map(|p| self.resolve_type_annotation(p))
+                    .collect();
                 let ret_ty = self.resolve_type_annotation(return_type);
                 Type::Function(param_tys, Box::new(ret_ty))
             }
@@ -779,12 +991,12 @@ mod ast_helpers {
 
     fn get_span_literal(lit: &Literal) -> Span {
         match lit {
-            Literal::Integer(_, span) |
-            Literal::Float(_, span) |
-            Literal::String(_, span) |
-            Literal::Char(_, span) |
-            Literal::Boolean(_, span) |
-            Literal::Null(span) => span.clone(),
+            Literal::Integer(_, span)
+            | Literal::Float(_, span)
+            | Literal::String(_, span)
+            | Literal::Char(_, span)
+            | Literal::Boolean(_, span)
+            | Literal::Null(span) => span.clone(),
         }
     }
 }
@@ -792,8 +1004,56 @@ mod ast_helpers {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nevermind_ast::Parameter;
+    use nevermind_ast::TypeAnnotation;
+    use nevermind_ast::types::{PrimitiveType as AstPrimitiveType, Type as AstType};
     use nevermind_common::Span;
+
+    fn int_expr(value: i64) -> Expr {
+        Expr::Literal(Literal::Integer(value, Span::dummy()))
+    }
+
+    fn bool_expr(value: bool) -> Expr {
+        Expr::Literal(Literal::Boolean(value, Span::dummy()))
+    }
+
+    fn expr_stmt(expr: Expr) -> Stmt {
+        Stmt::ExprStmt {
+            id: 99,
+            expr,
+            span: Span::dummy(),
+        }
+    }
+
+    fn return_stmt(value: Option<Expr>) -> Stmt {
+        Stmt::Return {
+            id: 100,
+            value,
+            span: Span::dummy(),
+        }
+    }
+
+    fn int_annotation() -> TypeAnnotation {
+        TypeAnnotation {
+            id: 101,
+            span: Span::dummy(),
+            kind: AstType::Primitive(AstPrimitiveType::Int),
+        }
+    }
+
+    fn function_with_body(
+        name: &str,
+        return_type: Option<TypeAnnotation>,
+        body: Expr,
+    ) -> Stmt {
+        Stmt::Function {
+            id: 102,
+            name: name.to_string(),
+            params: vec![],
+            return_type,
+            body,
+            span: Span::dummy(),
+        }
+    }
 
     #[test]
     fn test_literal_types() {
@@ -811,7 +1071,10 @@ mod tests {
         let mut checker = TypeChecker::new();
 
         // Add a variable to the environment
-        checker.env.insert("x".to_string(), TypeScheme::monomorphic(Type::Int)).unwrap();
+        checker
+            .env
+            .insert("x".to_string(), TypeScheme::monomorphic(Type::Int))
+            .unwrap();
 
         let var_expr = Expr::Variable {
             id: 1,
@@ -833,5 +1096,85 @@ mod tests {
         };
 
         assert!(checker.infer_expression(&var_expr).is_err());
+    }
+
+    #[test]
+    fn test_declared_return_type_mismatch_reports_error() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body("foo", Some(int_annotation()), bool_expr(true));
+
+        let err = checker.check(&[stmt]).unwrap_err();
+
+        assert!(matches!(err.kind, crate::error::TypeErrorKind::ReturnTypeMismatch { .. }));
+        assert!(err.message.contains("expected Int, found Bool"));
+    }
+
+    #[test]
+    fn test_missing_return_value_reports_error() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            Expr::Block {
+                id: 103,
+                statements: vec![return_stmt(None)],
+                span: Span::dummy(),
+            },
+        );
+
+        let err = checker.check(&[stmt]).unwrap_err();
+
+        assert!(matches!(err.kind, crate::error::TypeErrorKind::MissingReturnValue { .. }));
+        assert!(err.message.contains("must return Int"));
+    }
+
+    #[test]
+    fn test_missing_return_path_reports_error() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            Expr::Block {
+                id: 104,
+                statements: vec![Stmt::If {
+                    id: 105,
+                    condition: bool_expr(true),
+                    then_branch: vec![return_stmt(Some(int_expr(1)))],
+                    else_branch: None,
+                    span: Span::dummy(),
+                }],
+                span: Span::dummy(),
+            },
+        );
+
+        let err = checker.check(&[stmt]).unwrap_err();
+
+        assert!(matches!(err.kind, crate::error::TypeErrorKind::MissingReturn { .. }));
+        assert!(err.message.contains("not all paths in function 'foo' return Int"));
+    }
+
+    #[test]
+    fn test_explicit_return_and_fallthrough_value_can_agree() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            None,
+            Expr::Block {
+                id: 106,
+                statements: vec![
+                    Stmt::If {
+                        id: 107,
+                        condition: bool_expr(true),
+                        then_branch: vec![return_stmt(Some(int_expr(1)))],
+                        else_branch: None,
+                        span: Span::dummy(),
+                    },
+                    expr_stmt(int_expr(2)),
+                ],
+                span: Span::dummy(),
+            },
+        );
+
+        checker.check(&[stmt]).unwrap();
     }
 }

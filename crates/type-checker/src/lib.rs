@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 //! Type checker for Nevermind
 //!
 //! This crate implements a Hindley-Milner type checker with support for:
@@ -6,19 +8,19 @@
 //! - Constraint solving via unification
 //! - Rich error reporting
 
-pub mod types;
-pub mod ty;
-pub mod environment;
-pub mod unification;
 pub mod checker;
+pub mod environment;
 pub mod error;
+pub mod ty;
+pub mod types;
+pub mod unification;
 
-pub use types::{Type, TypeVarRef};
-pub use ty::{TypeVar, TypeScheme};
-pub use environment::TypeEnvironment;
-pub use unification::Unifier;
 pub use checker::TypeChecker;
-pub use error::{TypeError, TypeErrorKind, Result};
+pub use environment::TypeEnvironment;
+pub use error::{Result, TypeError, TypeErrorKind};
+pub use ty::{TypeScheme, TypeVar};
+pub use types::{Type, TypeVarRef};
+pub use unification::Unifier;
 
 /// Type checking context
 pub struct TypeContext {
@@ -28,9 +30,7 @@ pub struct TypeContext {
 
 impl TypeContext {
     pub fn new() -> Self {
-        Self {
-            next_var_id: 0,
-        }
+        Self { next_var_id: 0 }
     }
 
     pub fn fresh_var(&mut self) -> TypeVar {

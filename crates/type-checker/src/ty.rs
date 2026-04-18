@@ -1,9 +1,7 @@
 //! Type variables and type schemes for polymorphism
 
-use std::collections::HashSet;
-use std::rc::Rc;
 use crate::types::Type;
-use crate::error::{Result, TypeError, TypeErrorKind};
+use std::collections::HashSet;
 
 /// A type variable (for inference and polymorphism)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -49,10 +47,7 @@ impl TypeScheme {
 
     /// Create a monomorphic type scheme (no quantified variables)
     pub fn monomorphic(ty: Type) -> Self {
-        Self {
-            vars: vec![],
-            ty,
-        }
+        Self { vars: vec![], ty }
     }
 
     /// Generalize a type with respect to a set of free variables
@@ -75,11 +70,15 @@ impl TypeScheme {
     /// Instantiate this type scheme by replacing quantified variables with fresh type variables
     pub fn instantiate(&self, ctx: &mut crate::TypeContext) -> Type {
         // Create fresh type variables for each quantified variable
-        let subst: std::collections::HashMap<usize, Type> = self.vars
+        let subst: std::collections::HashMap<usize, Type> = self
+            .vars
             .iter()
             .map(|var| {
                 let fresh_var = ctx.fresh_var();
-                (var.id(), Type::Var(crate::types::TypeVarRef::new(fresh_var.id())))
+                (
+                    var.id(),
+                    Type::Var(crate::types::TypeVarRef::new(fresh_var.id())),
+                )
             })
             .collect();
 
@@ -118,9 +117,13 @@ impl Type {
                 }
                 set
             }
-            Type::Int | Type::Float | Type::String | Type::Bool | Type::Null | Type::Unit | Type::User(_) => {
-                HashSet::new()
-            }
+            Type::Int
+            | Type::Float
+            | Type::String
+            | Type::Bool
+            | Type::Null
+            | Type::Unit
+            | Type::User(_) => HashSet::new(),
         }
     }
 
@@ -134,17 +137,13 @@ impl Type {
                     self.clone()
                 }
             }
-            Type::Function(params, ret) => {
-                Type::Function(
-                    params.iter().map(|p| p.substitute(subst)).collect(),
-                    Box::new(ret.substitute(subst)),
-                )
-            }
+            Type::Function(params, ret) => Type::Function(
+                params.iter().map(|p| p.substitute(subst)).collect(),
+                Box::new(ret.substitute(subst)),
+            ),
             Type::List(elem) => Type::List(Box::new(elem.substitute(subst))),
             Type::Map(value) => Type::Map(Box::new(value.substitute(subst))),
-            Type::Tuple(elems) => {
-                Type::Tuple(elems.iter().map(|e| e.substitute(subst)).collect())
-            }
+            Type::Tuple(elems) => Type::Tuple(elems.iter().map(|e| e.substitute(subst)).collect()),
             _ => self.clone(),
         }
     }
@@ -174,10 +173,7 @@ mod tests {
 
     #[test]
     fn test_generalize() {
-        let ty = Type::function(
-            vec![Type::var(0), Type::var(0)],
-            Type::var(0),
-        );
+        let ty = Type::function(vec![Type::var(0), Type::var(0)], Type::var(0));
 
         let mut free_vars = HashSet::new();
         free_vars.insert(1);
@@ -213,10 +209,7 @@ mod tests {
 
     #[test]
     fn test_free_vars() {
-        let ty = Type::function(
-            vec![Type::var(0), Type::var(1)],
-            Type::var(0),
-        );
+        let ty = Type::function(vec![Type::var(0), Type::var(1)], Type::var(0));
 
         let free_vars = Type::free_vars(&ty);
 

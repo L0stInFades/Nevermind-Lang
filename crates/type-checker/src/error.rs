@@ -1,18 +1,28 @@
 //! Error types for type checking
 
+use crate::types::Type;
+use nevermind_common::Span;
 use std::fmt;
 use thiserror::Error;
-use nevermind_common::Span;
-use crate::types::Type;
 
 /// Kinds of type errors
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeErrorKind {
     /// Type mismatch
-    TypeMismatch {
+    TypeMismatch { expected: Type, found: Type },
+
+    /// Return statement does not match the surrounding function signature
+    ReturnTypeMismatch {
+        function: String,
         expected: Type,
         found: Type,
     },
+
+    /// Return statement omitted a required value
+    MissingReturnValue { function: String, expected: Type },
+
+    /// Some control-flow path falls through without producing the function's return type
+    MissingReturn { function: String, expected: Type },
 
     /// Undefined variable or function
     UndefinedVariable(String),
@@ -24,10 +34,7 @@ pub enum TypeErrorKind {
     InvalidScope,
 
     /// Arity mismatch (wrong number of arguments)
-    ArityMismatch {
-        expected: usize,
-        found: usize,
-    },
+    ArityMismatch { expected: usize, found: usize },
 
     /// Not a function
     NotAFunction(Type),
@@ -46,8 +53,36 @@ impl fmt::Display for TypeErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TypeErrorKind::TypeMismatch { expected, found } => {
-                write!(f, "type mismatch: expected {}, found {}", expected.display_name(), found.display_name())
+                write!(
+                    f,
+                    "type mismatch: expected {}, found {}",
+                    expected.display_name(),
+                    found.display_name()
+                )
             }
+            TypeErrorKind::ReturnTypeMismatch {
+                function,
+                expected,
+                found,
+            } => write!(
+                f,
+                "return type mismatch in function '{}': expected {}, found {}",
+                function,
+                expected.display_name(),
+                found.display_name()
+            ),
+            TypeErrorKind::MissingReturnValue { function, expected } => write!(
+                f,
+                "return statement in function '{}' must return {}",
+                function,
+                expected.display_name()
+            ),
+            TypeErrorKind::MissingReturn { function, expected } => write!(
+                f,
+                "not all paths in function '{}' return {}",
+                function,
+                expected.display_name()
+            ),
             TypeErrorKind::UndefinedVariable(name) => {
                 write!(f, "cannot find value '{}' in this scope", name)
             }
@@ -58,11 +93,14 @@ impl fmt::Display for TypeErrorKind {
                 write!(f, "invalid scope operation")
             }
             TypeErrorKind::ArityMismatch { expected, found } => {
-                write!(f, "this function takes {} argument{} but {} {} supplied",
+                write!(
+                    f,
+                    "this function takes {} argument{} but {} {} supplied",
                     expected,
                     if *expected == 1 { "" } else { "s" },
                     found,
-                    if *found == 1 { "was" } else { "were" })
+                    if *found == 1 { "was" } else { "were" }
+                )
             }
             TypeErrorKind::NotAFunction(ty) => {
                 write!(f, "{} is not a function", ty.display_name())
@@ -119,10 +157,7 @@ impl TypeError {
 
     /// Add contextual information to this error
     pub fn with_context(mut self, message: String, span: Option<Span>) -> Self {
-        self.context.push(ErrorContext {
-            message,
-            span,
-        });
+        self.context.push(ErrorContext { message, span });
         self
     }
 
@@ -133,7 +168,66 @@ impl TypeError {
                 expected: expected.clone(),
                 found: found.clone(),
             },
-            format!("expected {}, found {}", expected.display_name(), found.display_name()),
+            format!(
+                "expected {}, found {}",
+                expected.display_name(),
+                found.display_name()
+            ),
+            span,
+        )
+    }
+
+    /// Create a return type mismatch error.
+    pub fn return_type_mismatch(
+        function: String,
+        expected: Type,
+        found: Type,
+        span: Span,
+    ) -> Self {
+        Self::new(
+            TypeErrorKind::ReturnTypeMismatch {
+                function: function.clone(),
+                expected: expected.clone(),
+                found: found.clone(),
+            },
+            format!(
+                "return type mismatch in function '{}': expected {}, found {}",
+                function,
+                expected.display_name(),
+                found.display_name()
+            ),
+            span,
+        )
+    }
+
+    /// Create a missing return value error.
+    pub fn missing_return_value(function: String, expected: Type, span: Span) -> Self {
+        Self::new(
+            TypeErrorKind::MissingReturnValue {
+                function: function.clone(),
+                expected: expected.clone(),
+            },
+            format!(
+                "return statement in function '{}' must return {}",
+                function,
+                expected.display_name()
+            ),
+            span,
+        )
+    }
+
+    /// Create a missing return path error.
+    pub fn missing_return(function: String, expected: Type, span: Span) -> Self {
+        Self::new(
+            TypeErrorKind::MissingReturn {
+                function: function.clone(),
+                expected: expected.clone(),
+            },
+            format!(
+                "not all paths in function '{}' return {}",
+                function,
+                expected.display_name()
+            ),
             span,
         )
     }
@@ -160,10 +254,12 @@ impl TypeError {
     pub fn arity_mismatch(expected: usize, found: usize, span: Span) -> Self {
         Self::new(
             TypeErrorKind::ArityMismatch { expected, found },
-            format!("expected {} argument{}, found {}",
+            format!(
+                "expected {} argument{}, found {}",
                 expected,
                 if expected == 1 { "" } else { "s" },
-                found),
+                found
+            ),
             span,
         )
     }
@@ -195,14 +291,17 @@ impl TypeError {
 
         // Show location
         if self.span.start.line > 0 {
-            let file = self.span.start.file
+            let file = self
+                .span
+                .start
+                .file
                 .as_ref()
                 .and_then(|p| p.to_str())
                 .unwrap_or("<anon>");
-            output.push_str(&format!("  --> {}:{}:{}\n",
-                file,
-                self.span.start.line,
-                self.span.start.column));
+            output.push_str(&format!(
+                "  --> {}:{}:{}\n",
+                file, self.span.start.line, self.span.start.column
+            ));
         }
 
         // Show source code snippet if available
@@ -216,15 +315,16 @@ impl TypeError {
         // Show context
         for ctx in &self.context {
             if let Some(span) = &ctx.span {
-                let file = span.start.file
+                let file = span
+                    .start
+                    .file
                     .as_ref()
                     .and_then(|p| p.to_str())
                     .unwrap_or("<anon>");
-                output.push_str(&format!("  --> {}:{}:{}: note: {}\n",
-                    file,
-                    span.start.line,
-                    span.start.column,
-                    ctx.message));
+                output.push_str(&format!(
+                    "  --> {}:{}:{}: note: {}\n",
+                    file, span.start.line, span.start.column, ctx.message
+                ));
             } else {
                 output.push_str(&format!("  note: {}\n", ctx.message));
             }

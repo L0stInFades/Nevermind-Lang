@@ -2,7 +2,6 @@
 
 use std::fmt;
 use std::rc::Rc;
-use nevermind_common::Span;
 
 /// A type in the Nevermind type system
 #[derive(Debug, Clone, PartialEq)]
@@ -55,10 +54,7 @@ struct TypeVarInner {
 impl TypeVarRef {
     pub fn new(id: usize) -> Self {
         Self {
-            inner: Rc::new(std::cell::RefCell::new(TypeVarInner {
-                id,
-                name: None,
-            })),
+            inner: Rc::new(std::cell::RefCell::new(TypeVarInner { id, name: None })),
         }
     }
 

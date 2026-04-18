@@ -1,11 +1,11 @@
 //! Type environment for managing type schemes in nested scopes
 
+use crate::error::{Result, TypeError, TypeErrorKind};
+use crate::ty::TypeScheme;
+use crate::types::Type;
+use nevermind_common::Span;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use crate::types::Type;
-use crate::ty::TypeScheme;
-use crate::error::{Result, TypeError, TypeErrorKind};
-use nevermind_common::Span;
 
 /// A type environment that maps names to type schemes
 #[derive(Debug, Clone)]
@@ -42,7 +42,10 @@ impl TypeEnvironment {
             vec![Type::Var(crate::types::TypeVarRef::new(print_var.id()))],
             Box::new(Type::Unit),
         );
-        let _ = env.insert("print".to_string(), TypeScheme::new(vec![print_var.clone()], print_type));
+        let _ = env.insert(
+            "print".to_string(),
+            TypeScheme::new(vec![print_var.clone()], print_type),
+        );
 
         // println: forall a. (a) -> Unit
         let println_var = TypeVar::new(9001);
@@ -50,7 +53,10 @@ impl TypeEnvironment {
             vec![Type::Var(crate::types::TypeVarRef::new(println_var.id()))],
             Box::new(Type::Unit),
         );
-        let _ = env.insert("println".to_string(), TypeScheme::new(vec![println_var.clone()], println_type));
+        let _ = env.insert(
+            "println".to_string(),
+            TypeScheme::new(vec![println_var.clone()], println_type),
+        );
 
         // len: forall a. (a) -> Int
         let len_var = TypeVar::new(9002);
@@ -58,7 +64,10 @@ impl TypeEnvironment {
             vec![Type::Var(crate::types::TypeVarRef::new(len_var.id()))],
             Box::new(Type::Int),
         );
-        let _ = env.insert("len".to_string(), TypeScheme::new(vec![len_var.clone()], len_type));
+        let _ = env.insert(
+            "len".to_string(),
+            TypeScheme::new(vec![len_var.clone()], len_type),
+        );
 
         // input: (String) -> String
         let input_type = Type::Function(vec![Type::String], Box::new(Type::String));
@@ -77,7 +86,10 @@ impl TypeEnvironment {
             vec![Type::Var(crate::types::TypeVarRef::new(str_var.id()))],
             Box::new(Type::String),
         );
-        let _ = env.insert("str".to_string(), TypeScheme::new(vec![str_var.clone()], str_type));
+        let _ = env.insert(
+            "str".to_string(),
+            TypeScheme::new(vec![str_var.clone()], str_type),
+        );
 
         // int: forall a. (a) -> Int
         let int_var = TypeVar::new(9004);
@@ -85,7 +97,10 @@ impl TypeEnvironment {
             vec![Type::Var(crate::types::TypeVarRef::new(int_var.id()))],
             Box::new(Type::Int),
         );
-        let _ = env.insert("int".to_string(), TypeScheme::new(vec![int_var.clone()], int_type));
+        let _ = env.insert(
+            "int".to_string(),
+            TypeScheme::new(vec![int_var.clone()], int_type),
+        );
 
         env
     }
@@ -187,7 +202,6 @@ impl Default for TypeEnvironment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ty::TypeVar;
 
     #[test]
     fn test_empty_environment() {
@@ -212,7 +226,8 @@ mod tests {
         let mut env = TypeEnvironment::new();
 
         // Insert in outer scope
-        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Int)).unwrap();
+        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Int))
+            .unwrap();
 
         // Enter inner scope
         env.enter_scope();
@@ -221,7 +236,8 @@ mod tests {
         assert!(env.lookup("x").is_some());
 
         // Shadow x
-        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Bool)).unwrap();
+        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Bool))
+            .unwrap();
 
         // Should see the shadowed value
         let found = env.lookup("x").unwrap();
@@ -239,7 +255,8 @@ mod tests {
     fn test_duplicate_definition() {
         let mut env = TypeEnvironment::new();
 
-        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Int)).unwrap();
+        env.insert("x".to_string(), TypeScheme::monomorphic(Type::Int))
+            .unwrap();
 
         let result = env.insert("x".to_string(), TypeScheme::monomorphic(Type::Bool));
         assert!(result.is_err());
@@ -256,8 +273,10 @@ mod tests {
     fn test_free_vars() {
         let mut env = TypeEnvironment::new();
 
-        env.insert("x".to_string(), TypeScheme::monomorphic(Type::var(0))).unwrap();
-        env.insert("y".to_string(), TypeScheme::monomorphic(Type::var(1))).unwrap();
+        env.insert("x".to_string(), TypeScheme::monomorphic(Type::var(0)))
+            .unwrap();
+        env.insert("y".to_string(), TypeScheme::monomorphic(Type::var(1)))
+            .unwrap();
 
         let free_vars = env.free_vars();
 

@@ -1,9 +1,9 @@
 //! Unification algorithm for type inference
 
-use std::collections::HashMap;
-use crate::types::{Type, TypeVarRef};
 use crate::error::{Result, TypeError, TypeErrorKind};
+use crate::types::{Type, TypeVarRef};
 use nevermind_common::Span;
+use std::collections::HashMap;
 
 /// A substitution mapping type variables to types
 pub type Substitution = HashMap<usize, Type>;
@@ -39,17 +39,15 @@ impl Unifier {
 
         match (ty1, ty2) {
             // Unifying a type variable with a type
-            (Type::Var(var), ty) | (ty, Type::Var(var)) => {
-                self.bind_var(var, ty, span)
-            }
+            (Type::Var(var), ty) | (ty, Type::Var(var)) => self.bind_var(var, ty, span),
 
             // Unifying two base types
-            (Type::Int, Type::Int) |
-            (Type::Float, Type::Float) |
-            (Type::String, Type::String) |
-            (Type::Bool, Type::Bool) |
-            (Type::Null, Type::Null) |
-            (Type::Unit, Type::Unit) => Ok(()),
+            (Type::Int, Type::Int)
+            | (Type::Float, Type::Float)
+            | (Type::String, Type::String)
+            | (Type::Bool, Type::Bool)
+            | (Type::Null, Type::Null)
+            | (Type::Unit, Type::Unit) => Ok(()),
 
             // Unifying two user-defined types
             (Type::User(name1), Type::User(name2)) if name1 == name2 => Ok(()),
@@ -57,7 +55,11 @@ impl Unifier {
             // Unifying two function types
             (Type::Function(params1, ret1), Type::Function(params2, ret2)) => {
                 if params1.len() != params2.len() {
-                    return Err(TypeError::arity_mismatch(params2.len(), params1.len(), span.clone()));
+                    return Err(TypeError::arity_mismatch(
+                        params2.len(),
+                        params1.len(),
+                        span.clone(),
+                    ));
                 }
 
                 // Unify parameters
@@ -70,14 +72,10 @@ impl Unifier {
             }
 
             // Unifying two list types
-            (Type::List(elem1), Type::List(elem2)) => {
-                self.unify(&elem1, &elem2, span)
-            }
+            (Type::List(elem1), Type::List(elem2)) => self.unify(&elem1, &elem2, span),
 
             // Unifying two map types
-            (Type::Map(value1), Type::Map(value2)) => {
-                self.unify(&value1, &value2, span)
-            }
+            (Type::Map(value1), Type::Map(value2)) => self.unify(&value1, &value2, span),
 
             // Unifying two tuple types
             (Type::Tuple(elems1), Type::Tuple(elems2)) => {
@@ -97,9 +95,7 @@ impl Unifier {
             }
 
             // Type mismatch
-            (ty1, ty2) => {
-                Err(TypeError::type_mismatch(ty1, ty2, span.clone()))
-            }
+            (ty1, ty2) => Err(TypeError::type_mismatch(ty1, ty2, span.clone())),
         }
     }
 
@@ -152,17 +148,13 @@ impl Unifier {
                     ty.clone()
                 }
             }
-            Type::Function(params, ret) => {
-                Type::Function(
-                    params.iter().map(|p| self.apply(p)).collect(),
-                    Box::new(self.apply(ret)),
-                )
-            }
+            Type::Function(params, ret) => Type::Function(
+                params.iter().map(|p| self.apply(p)).collect(),
+                Box::new(self.apply(ret)),
+            ),
             Type::List(elem) => Type::List(Box::new(self.apply(elem))),
             Type::Map(value) => Type::Map(Box::new(self.apply(value))),
-            Type::Tuple(elems) => {
-                Type::Tuple(elems.iter().map(|e| self.apply(e)).collect())
-            }
+            Type::Tuple(elems) => Type::Tuple(elems.iter().map(|e| self.apply(e)).collect()),
             _ => ty.clone(),
         }
     }
@@ -196,17 +188,21 @@ impl Unifier {
                     ty.clone()
                 }
             }
-            Type::Function(params, ret) => {
-                Type::Function(
-                    params.iter().map(|p| self.apply_from_subst(p, subst)).collect(),
-                    Box::new(self.apply_from_subst(ret, subst)),
-                )
-            }
+            Type::Function(params, ret) => Type::Function(
+                params
+                    .iter()
+                    .map(|p| self.apply_from_subst(p, subst))
+                    .collect(),
+                Box::new(self.apply_from_subst(ret, subst)),
+            ),
             Type::List(elem) => Type::List(Box::new(self.apply_from_subst(elem, subst))),
             Type::Map(value) => Type::Map(Box::new(self.apply_from_subst(value, subst))),
-            Type::Tuple(elems) => {
-                Type::Tuple(elems.iter().map(|e| self.apply_from_subst(e, subst)).collect())
-            }
+            Type::Tuple(elems) => Type::Tuple(
+                elems
+                    .iter()
+                    .map(|e| self.apply_from_subst(e, subst))
+                    .collect(),
+            ),
             _ => ty.clone(),
         }
     }
@@ -257,10 +253,15 @@ mod tests {
         let span = Span::dummy();
 
         // Bind t0 to Int
-        unifier.unify(&Type::Var(TypeVarRef::new(0)), &Type::Int, &span).unwrap();
+        unifier
+            .unify(&Type::Var(TypeVarRef::new(0)), &Type::Int, &span)
+            .unwrap();
 
         // Apply substitution to a type containing t0
-        let ty = Type::Function(vec![Type::Var(TypeVarRef::new(0))], Box::new(Type::Var(TypeVarRef::new(0))));
+        let ty = Type::Function(
+            vec![Type::Var(TypeVarRef::new(0))],
+            Box::new(Type::Var(TypeVarRef::new(0))),
+        );
         let result = unifier.apply(&ty);
 
         if let Type::Function(params, ret) = result {
@@ -277,7 +278,10 @@ mod tests {
         let span = Span::dummy();
 
         let ty1 = Type::function(vec![Type::Int], Type::Bool);
-        let ty2 = Type::function(vec![Type::Var(TypeVarRef::new(0))], Type::Var(TypeVarRef::new(1)));
+        let ty2 = Type::function(
+            vec![Type::Var(TypeVarRef::new(0))],
+            Type::Var(TypeVarRef::new(1)),
+        );
 
         assert!(unifier.unify(&ty1, &ty2, &span).is_ok());
 
