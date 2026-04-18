@@ -1,15 +1,18 @@
 //! Nevermind CLI - Command-line interface for the Nevermind language
 
-use std::path::PathBuf;
+mod formatting;
+mod linting;
+
 use std::fs;
 use std::io::{self, BufRead, Write};
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "nevermind")]
 #[command(about = "The Nevermind Programming Language", long_about = None)]
-#[command(version = "0.4.0")]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -75,13 +78,19 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Compile { input, output, parse_only } => {
-            compile(input, output, parse_only)
-        }
+        Commands::Compile {
+            input,
+            output,
+            parse_only,
+        } => compile(input, output, parse_only),
         Commands::Run { input, args } => run(input, args),
         Commands::Repl => repl(),
         Commands::Check { input } => check(input),
-        Commands::Fmt { inputs, write, check } => fmt(inputs, write, check),
+        Commands::Fmt {
+            inputs,
+            write,
+            check,
+        } => fmt(inputs, write, check),
         Commands::Lint { inputs } => lint(inputs),
     };
 
@@ -112,7 +121,10 @@ fn compile(
     let mut parser = nevermind_parser::Parser::from_tokens(tokens);
     let statements = parser.parse()?;
 
-    println!("  ✓ Syntax analysis passed ({} statements)", statements.len());
+    println!(
+        "  ✓ Syntax analysis passed ({} statements)",
+        statements.len()
+    );
 
     if parse_only {
         // Just show AST
@@ -134,8 +146,8 @@ fn compile(
     // so Python can find it at runtime.
     compile_module_deps(&statements, &base_dir)?;
     let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
-    let name_scope = match resolver.resolve(&statements) {
-        Ok(scope) => scope,
+    match resolver.resolve(&statements) {
+        Ok(()) => {}
         Err(errors) => {
             eprintln!("  Name resolution errors: {}", errors.len());
             for error in &errors {
@@ -144,8 +156,6 @@ fn compile(
             return Err(format!("Name resolution failed with {} errors", errors.len()).into());
         }
     };
-
-    let _ = name_scope; // Suppress unused warning
 
     println!("  ✓ Name resolution passed");
 
@@ -225,8 +235,12 @@ fn run(input: PathBuf, args: Vec<String>) -> Result<(), Box<dyn std::error::Erro
     }
 
     if let Some(e) = last_err {
-        return Err(format!("Could not find Python interpreter. Tried: {}. Error: {}",
-            python_cmds.join(", "), e).into());
+        return Err(format!(
+            "Could not find Python interpreter. Tried: {}. Error: {}",
+            python_cmds.join(", "),
+            e
+        )
+        .into());
     }
 
     let status = status.unwrap();
@@ -240,7 +254,7 @@ fn run(input: PathBuf, args: Vec<String>) -> Result<(), Box<dyn std::error::Erro
 
 /// Start the REPL
 fn repl() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Nevermind REPL v0.4.0");
+    println!("Nevermind REPL v{}", env!("CARGO_PKG_VERSION"));
     println!("Type :help for help, exit or Ctrl-D to quit\n");
 
     let mut definitions: Vec<String> = Vec::new();
@@ -250,7 +264,11 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         // Show prompt
-        let prompt = if input_buffer.is_empty() { ">>> " } else { "... " };
+        let prompt = if input_buffer.is_empty() {
+            ">>> "
+        } else {
+            "... "
+        };
         print!("{}", prompt);
         io::stdout().flush()?;
 
@@ -311,7 +329,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
         if !input_buffer.is_empty() {
             input_buffer.push('\n');
         }
-        input_buffer.push_str(&line.trim_end_matches('\n').trim_end_matches('\r'));
+        input_buffer.push_str(line.trim_end_matches('\n').trim_end_matches('\r'));
 
         // Check if we need more input
         if needs_more_input(&input_buffer) {
@@ -559,9 +577,11 @@ fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>>
 fn has_keyword(s: &str, kw: &str) -> bool {
     let kw_len = kw.len();
     for (i, _) in s.match_indices(kw) {
-        let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
+        let before_ok =
+            i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
         let after = i + kw_len;
-        let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
+        let after_ok = after >= s.len()
+            || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
         if before_ok && after_ok {
             return true;
         }
@@ -574,9 +594,11 @@ fn count_keyword(s: &str, kw: &str) -> i32 {
     let kw_len = kw.len();
     let mut count = 0;
     for (i, _) in s.match_indices(kw) {
-        let before_ok = i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
+        let before_ok =
+            i == 0 || !s.as_bytes()[i - 1].is_ascii_alphanumeric() && s.as_bytes()[i - 1] != b'_';
         let after = i + kw_len;
-        let after_ok = after >= s.len() || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
+        let after_ok = after >= s.len()
+            || !s.as_bytes()[after].is_ascii_alphanumeric() && s.as_bytes()[after] != b'_';
         if before_ok && after_ok {
             count += 1;
         }
@@ -613,7 +635,10 @@ fn needs_more_input(input: &str) -> bool {
 
     // Check for fn signature without body (no "do" on same line)
     let first_line = input.lines().next().unwrap_or("").trim();
-    if first_line.starts_with("fn ") && !has_keyword(first_line, "do") && !has_keyword(first_line, "end") {
+    if first_line.starts_with("fn ")
+        && !has_keyword(first_line, "do")
+        && !has_keyword(first_line, "end")
+    {
         let line_count = input.lines().count();
         if line_count == 1 {
             return true;
@@ -709,8 +734,8 @@ fn check(input: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
-    let name_scope = match resolver.resolve(&statements) {
-        Ok(scope) => scope,
+    match resolver.resolve(&statements) {
+        Ok(()) => {}
         Err(errors) => {
             eprintln!("  Name resolution errors: {}", errors.len());
             for error in &errors {
@@ -719,8 +744,6 @@ fn check(input: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("Name resolution failed with {} errors", errors.len()).into());
         }
     };
-
-    let _ = name_scope; // Suppress unused warning
 
     println!("  ✓ Name resolution passed");
 
@@ -737,36 +760,10 @@ fn check(input: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
 
 /// Format Nevermind files
 fn fmt(inputs: Vec<PathBuf>, write: bool, check: bool) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Formatting: {:?}", inputs);
-
-    for input in inputs {
-        let _source = fs::read_to_string(&input)?;
-
-        // TODO: Implement formatting
-        println!("  Formatting: {:?}", input);
-        println!("  ⚠ Formatter not yet implemented");
-
-        if write {
-            // Write formatted code back
-        }
-
-        if check {
-            // Check if formatting is needed
-            println!("  ✓ {:?}", input);
-        }
-    }
-
-    Ok(())
+    formatting::format_paths(inputs, write, check)
 }
 
 /// Lint Nevermind files
 fn lint(inputs: Vec<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Linting: {:?}", inputs);
-
-    for input in inputs {
-        println!("  Linting: {:?}", input);
-        println!("  ⚠ Linter not yet implemented");
-    }
-
-    Ok(())
+    linting::lint_paths(inputs)
 }

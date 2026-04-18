@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run Rust test suite without warnings
+        run: cargo test
+        env:
+          RUSTFLAGS: -D warnings
+
+      - name: Run Clippy without warnings
+        run: cargo clippy -- -D warnings
+
+      - name: Smoke test formatter
+        run: cargo run -- fmt --check examples/hello.nm
+
+      - name: Smoke test linter
+        run: cargo run -- lint examples/hello.nm
+
+      - name: Smoke test runnable example
+        run: cargo run -- run examples/patterns.nm
