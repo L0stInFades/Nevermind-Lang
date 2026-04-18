@@ -1,6 +1,6 @@
 //! MIR statements (top-level)
 
-use super::{NodeId, MirExpr, MirBlock, MirPattern};
+use super::{MirBlock, MirExpr, MirPattern, NodeId};
 use nevermind_type_checker::Type;
 
 /// Top-level MIR statements
@@ -50,20 +50,13 @@ pub enum MirStmt {
     },
 
     /// Return statement
-    Return {
-        value: Option<MirExpr>,
-        id: NodeId,
-    },
+    Return { value: Option<MirExpr>, id: NodeId },
 
     /// Break statement
-    Break {
-        id: NodeId,
-    },
+    Break { id: NodeId },
 
     /// Continue statement
-    Continue {
-        id: NodeId,
-    },
+    Continue { id: NodeId },
 
     /// Match statement
     Match {

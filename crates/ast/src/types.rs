@@ -146,8 +146,15 @@ impl PrimitiveType {
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
-            Self::Int | Self::UInt | Self::Int64 | Self::UInt64 |
-            Self::Int32 | Self::UInt32 | Self::Float | Self::Float64 | Self::Float32
+            Self::Int
+                | Self::UInt
+                | Self::Int64
+                | Self::UInt64
+                | Self::Int32
+                | Self::UInt32
+                | Self::Float
+                | Self::Float64
+                | Self::Float32
         )
     }
 
@@ -155,8 +162,7 @@ impl PrimitiveType {
     pub fn is_integer(&self) -> bool {
         matches!(
             self,
-            Self::Int | Self::UInt | Self::Int64 | Self::UInt64 |
-            Self::Int32 | Self::UInt32
+            Self::Int | Self::UInt | Self::Int64 | Self::UInt64 | Self::Int32 | Self::UInt32
         )
     }
 
@@ -184,7 +190,10 @@ impl fmt::Display for Type {
                 }
                 write!(f, ")")
             }
-            Type::Function { params, return_type } => {
+            Type::Function {
+                params,
+                return_type,
+            } => {
                 write!(f, "fn(")?;
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {

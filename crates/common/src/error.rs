@@ -190,11 +190,7 @@ impl fmt::Display for Error {
 /// Convert IO errors
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Self::new(
-            ErrorKind::Io,
-            err.to_string(),
-            Span::dummy(),
-        )
+        Self::new(ErrorKind::Io, err.to_string(), Span::dummy())
     }
 }
 

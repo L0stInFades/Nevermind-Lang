@@ -39,7 +39,7 @@ impl BinaryOp {
     /// Check if this operator is left-associative
     pub fn is_left_associative(&self) -> bool {
         match self {
-            Self::Pow => false,  // Right-associative
+            Self::Pow => false, // Right-associative
             _ => true,
         }
     }

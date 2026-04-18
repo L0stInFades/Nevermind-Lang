@@ -14,11 +14,7 @@ pub enum MirExpr {
     },
 
     /// Variable reference
-    Variable {
-        name: String,
-        ty: Type,
-        id: NodeId,
-    },
+    Variable { name: String, ty: Type, id: NodeId },
 
     /// Binary operation
     Binary {
@@ -228,14 +224,10 @@ pub enum MirExprStmt {
     },
 
     /// Break statement
-    Break {
-        id: NodeId,
-    },
+    Break { id: NodeId },
 
     /// Continue statement
-    Continue {
-        id: NodeId,
-    },
+    Continue { id: NodeId },
 }
 
 impl MirExprStmt {
@@ -278,5 +270,11 @@ impl MirBlock {
     pub fn add_stmt(mut self, stmt: MirExprStmt) -> Self {
         self.statements.push(stmt);
         self
+    }
+}
+
+impl Default for MirBlock {
+    fn default() -> Self {
+        Self::new()
     }
 }

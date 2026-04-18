@@ -5,11 +5,11 @@
 pub mod emit;
 pub mod python;
 
-pub use emit::{CodeEmitter, BytecodeChunk};
+pub use emit::{BytecodeChunk, CodeEmitter};
 pub use python::PythonGenerator;
 
-use nevermind_mir::{MirProgram};
 use emit::Result;
+use nevermind_mir::MirProgram;
 
 /// Generate Python bytecode from MIR program
 pub fn generate(program: &MirProgram) -> Result<String> {

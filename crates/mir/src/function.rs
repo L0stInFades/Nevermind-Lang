@@ -1,8 +1,8 @@
 //! MIR functions and programs
 
-use super::{NodeId, MirStmt};
-use super::stmt::Param;
 use super::expr::MirBlock;
+use super::stmt::Param;
+use super::{MirStmt, NodeId};
 use nevermind_type_checker::Type;
 
 /// A MIR function
@@ -50,7 +50,14 @@ impl MirProgram {
 
     pub fn iter_functions(&self) -> impl Iterator<Item = MirFunction> + '_ {
         self.statements.iter().filter_map(|stmt| {
-            if let MirStmt::Function { id, name, params, body, return_type } = stmt {
+            if let MirStmt::Function {
+                id,
+                name,
+                params,
+                body,
+                return_type,
+            } = stmt
+            {
                 Some(MirFunction {
                     name: name.clone(),
                     params: params.clone(),

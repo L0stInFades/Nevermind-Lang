@@ -1,8 +1,10 @@
 //! Python code generator
 
-use super::{BytecodeChunk, CodeEmitter};
 use super::emit::Result;
-use nevermind_mir::{MirProgram, MirFunction, MirExpr, MirExprStmt, MirStmt, BinOp, UnaryOp, Literal};
+use super::{BytecodeChunk, CodeEmitter};
+use nevermind_mir::{
+    BinOp, Literal, MirExpr, MirExprStmt, MirFunction, MirProgram, MirStmt, UnaryOp,
+};
 
 /// Python code generator
 pub struct PythonGenerator {
@@ -11,14 +13,11 @@ pub struct PythonGenerator {
 
 impl PythonGenerator {
     pub fn new() -> Self {
-        Self {
-            indent_level: 0,
-        }
+        Self { indent_level: 0 }
     }
 
-    pub fn generate(&self, program: &MirProgram) -> Result<String> {
-        let mut generator = PythonGenerator::new();
-        let chunk = generator.emit_program(program)?;
+    pub fn generate(&mut self, program: &MirProgram) -> Result<String> {
+        let chunk = self.emit_program(program)?;
         Ok(chunk.code)
     }
 
@@ -42,9 +41,7 @@ impl PythonGenerator {
                     format!("\"{}\"", escape_string(v))
                 }
             }
-            Literal::Bool(v) => {
-                if *v { "True" } else { "False" }.to_string()
-            }
+            Literal::Bool(v) => if *v { "True" } else { "False" }.to_string(),
             Literal::Null => "None".to_string(),
         }
     }
@@ -76,7 +73,11 @@ impl PythonGenerator {
     }
 
     /// Emit a list of MirExprStmt with proper indentation
-    fn emit_expr_stmt_list(&mut self, stmts: &[MirExprStmt], output: &mut BytecodeChunk) -> Result<()> {
+    fn emit_expr_stmt_list(
+        &mut self,
+        stmts: &[MirExprStmt],
+        output: &mut BytecodeChunk,
+    ) -> Result<()> {
         if stmts.is_empty() {
             self.output_line(output, "pass");
             return Ok(());
@@ -98,10 +99,23 @@ impl PythonGenerator {
                 let chunk = self.emit_expr(value)?;
                 self.output_line(output, &format!("{} = {}", target, chunk.code.trim()));
             }
-            MirExprStmt::IndexAssign { array, index, value, .. } => {
+            MirExprStmt::IndexAssign {
+                array,
+                index,
+                value,
+                ..
+            } => {
                 let index_chunk = self.emit_expr(index)?;
                 let value_chunk = self.emit_expr(value)?;
-                self.output_line(output, &format!("{}[{}] = {}", array, index_chunk.code.trim(), value_chunk.code.trim()));
+                self.output_line(
+                    output,
+                    &format!(
+                        "{}[{}] = {}",
+                        array,
+                        index_chunk.code.trim(),
+                        value_chunk.code.trim()
+                    ),
+                );
             }
             MirExprStmt::Expr(expr) => {
                 let chunk = self.emit_expr(expr)?;
@@ -118,7 +132,12 @@ impl PythonGenerator {
                     self.output_line(output, "return");
                 }
             }
-            MirExprStmt::If { condition, then_body, else_body, .. } => {
+            MirExprStmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond_chunk = self.emit_expr(condition)?;
                 self.output_line(output, &format!("if {}:", cond_chunk.code.trim()));
                 self.indent_level += 1;
@@ -131,16 +150,26 @@ impl PythonGenerator {
                     self.indent_level -= 1;
                 }
             }
-            MirExprStmt::While { condition, body, .. } => {
+            MirExprStmt::While {
+                condition, body, ..
+            } => {
                 let cond_chunk = self.emit_expr(condition)?;
                 self.output_line(output, &format!("while {}:", cond_chunk.code.trim()));
                 self.indent_level += 1;
                 self.emit_expr_stmt_list(body, output)?;
                 self.indent_level -= 1;
             }
-            MirExprStmt::For { variable, iter, body, .. } => {
+            MirExprStmt::For {
+                variable,
+                iter,
+                body,
+                ..
+            } => {
                 let iter_chunk = self.emit_expr(iter)?;
-                self.output_line(output, &format!("for {} in {}:", variable, iter_chunk.code.trim()));
+                self.output_line(
+                    output,
+                    &format!("for {} in {}:", variable, iter_chunk.code.trim()),
+                );
                 self.indent_level += 1;
                 self.emit_expr_stmt_list(body, output)?;
                 self.indent_level -= 1;
@@ -170,7 +199,9 @@ impl PythonGenerator {
     /// Emit a single top-level MirStmt
     fn emit_mir_stmt(&mut self, stmt: &MirStmt, output: &mut BytecodeChunk) -> Result<()> {
         match stmt {
-            MirStmt::Function { name, params, body, .. } => {
+            MirStmt::Function {
+                name, params, body, ..
+            } => {
                 let params_str: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
                 let params_str = params_str.join(", ");
                 self.output_line(output, &format!("def {}({}):", name, params_str));
@@ -204,7 +235,12 @@ impl PythonGenerator {
                     self.output_line(output, code);
                 }
             }
-            MirStmt::If { condition, then_body, else_body, .. } => {
+            MirStmt::If {
+                condition,
+                then_body,
+                else_body,
+                ..
+            } => {
                 let cond_chunk = self.emit_expr(condition)?;
                 self.output_line(output, &format!("if {}:", cond_chunk.code.trim()));
                 self.indent_level += 1;
@@ -217,16 +253,26 @@ impl PythonGenerator {
                     self.indent_level -= 1;
                 }
             }
-            MirStmt::While { condition, body, .. } => {
+            MirStmt::While {
+                condition, body, ..
+            } => {
                 let cond_chunk = self.emit_expr(condition)?;
                 self.output_line(output, &format!("while {}:", cond_chunk.code.trim()));
                 self.indent_level += 1;
                 self.emit_mir_stmt_list(body, output)?;
                 self.indent_level -= 1;
             }
-            MirStmt::For { variable, iter, body, .. } => {
+            MirStmt::For {
+                variable,
+                iter,
+                body,
+                ..
+            } => {
                 let iter_chunk = self.emit_expr(iter)?;
-                self.output_line(output, &format!("for {} in {}:", variable, iter_chunk.code.trim()));
+                self.output_line(
+                    output,
+                    &format!("for {} in {}:", variable, iter_chunk.code.trim()),
+                );
                 self.indent_level += 1;
                 self.emit_mir_stmt_list(body, output)?;
                 self.indent_level -= 1;
@@ -245,7 +291,9 @@ impl PythonGenerator {
             MirStmt::Continue { .. } => {
                 self.output_line(output, "continue");
             }
-            MirStmt::Import { module, symbols, .. } => {
+            MirStmt::Import {
+                module, symbols, ..
+            } => {
                 // Convert Nevermind path separators to Python dot notation.
                 // "math/utils" -> "math.utils"
                 let py_module = module.replace('/', ".");
@@ -254,7 +302,10 @@ impl PythonGenerator {
                     Some(syms) if !syms.is_empty() => {
                         // from "math/utils" import sqrt, exp
                         let syms_str = syms.join(", ");
-                        self.output_line(output, &format!("from {} import {}", py_module, syms_str));
+                        self.output_line(
+                            output,
+                            &format!("from {} import {}", py_module, syms_str),
+                        );
                     }
                     _ => {
                         // use "math"        -> import math
@@ -269,7 +320,9 @@ impl PythonGenerator {
                 }
             }
 
-            MirStmt::Match { scrutinee, arms, .. } => {
+            MirStmt::Match {
+                scrutinee, arms, ..
+            } => {
                 let scrut_chunk = self.emit_expr(scrutinee)?;
                 self.output_line(output, &format!("match {}:", scrut_chunk.code.trim()));
                 self.indent_level += 1;
@@ -277,7 +330,10 @@ impl PythonGenerator {
                     let pattern_str = format_mir_pattern(&arm.pattern);
                     if let Some(guard) = &arm.guard {
                         let guard_chunk = self.emit_expr(guard)?;
-                        self.output_line(output, &format!("case {} if {}:", pattern_str, guard_chunk.code.trim()));
+                        self.output_line(
+                            output,
+                            &format!("case {} if {}:", pattern_str, guard_chunk.code.trim()),
+                        );
                     } else {
                         self.output_line(output, &format!("case {}:", pattern_str));
                     }
@@ -314,9 +370,10 @@ impl CodeEmitter for PythonGenerator {
         }
 
         // Auto-call main() if it exists
-        let has_main = program.statements.iter().any(|s| {
-            matches!(s, MirStmt::Function { name, .. } if name == "main")
-        });
+        let has_main = program
+            .statements
+            .iter()
+            .any(|s| matches!(s, MirStmt::Function { name, .. } if name == "main"));
         if has_main {
             output.add_line("");
             output.add_line("if __name__ == \"__main__\":");
@@ -364,12 +421,15 @@ impl CodeEmitter for PythonGenerator {
                 output.add_line(name);
             }
 
-            MirExpr::Binary { op, left, right, .. } => {
+            MirExpr::Binary {
+                op, left, right, ..
+            } => {
                 let left_chunk = self.emit_expr(left)?;
                 let right_chunk = self.emit_expr(right)?;
                 let py_op = self.map_binop(*op);
 
-                output.add_line(&format!("({} {} {})",
+                output.add_line(&format!(
+                    "({} {} {})",
                     left_chunk.code.trim(),
                     py_op,
                     right_chunk.code.trim()
@@ -392,10 +452,16 @@ impl CodeEmitter for PythonGenerator {
                     arg_strings.push(chunk.code.trim().to_string());
                 }
 
-                output.add_line(&format!("{}({})", callee_chunk.code.trim(), arg_strings.join(", ")));
+                output.add_line(&format!(
+                    "{}({})",
+                    callee_chunk.code.trim(),
+                    arg_strings.join(", ")
+                ));
             }
 
-            MirExpr::Block { statements, expr, .. } => {
+            MirExpr::Block {
+                statements, expr, ..
+            } => {
                 for stmt in statements {
                     match stmt {
                         MirExprStmt::Let { name, value, .. } => {
@@ -406,10 +472,20 @@ impl CodeEmitter for PythonGenerator {
                             let chunk = self.emit_expr(value)?;
                             output.add_line(&format!("{} = {}", target, chunk.code.trim()));
                         }
-                        MirExprStmt::IndexAssign { array, index, value, .. } => {
+                        MirExprStmt::IndexAssign {
+                            array,
+                            index,
+                            value,
+                            ..
+                        } => {
                             let index_chunk = self.emit_expr(index)?;
                             let value_chunk = self.emit_expr(value)?;
-                            output.add_line(&format!("{}[{}] = {}", array, index_chunk.code.trim(), value_chunk.code.trim()));
+                            output.add_line(&format!(
+                                "{}[{}] = {}",
+                                array,
+                                index_chunk.code.trim(),
+                                value_chunk.code.trim()
+                            ));
                         }
                         MirExprStmt::Expr(e) => {
                             let chunk = self.emit_expr(e)?;
@@ -427,9 +503,18 @@ impl CodeEmitter for PythonGenerator {
                                 output.add_line("return");
                             }
                         }
-                        MirExprStmt::If { condition, then_body, else_body, .. } => {
+                        MirExprStmt::If {
+                            condition,
+                            then_body,
+                            else_body,
+                            ..
+                        } => {
                             let cond_chunk = self.emit_expr(condition)?;
-                            output.add_line(&format!("{}if {}:", self.indent(), cond_chunk.code.trim()));
+                            output.add_line(&format!(
+                                "{}if {}:",
+                                self.indent(),
+                                cond_chunk.code.trim()
+                            ));
                             self.indent_level += 1;
                             self.emit_expr_stmt_list(then_body, &mut output)?;
                             self.indent_level -= 1;
@@ -440,16 +525,32 @@ impl CodeEmitter for PythonGenerator {
                                 self.indent_level -= 1;
                             }
                         }
-                        MirExprStmt::While { condition, body, .. } => {
+                        MirExprStmt::While {
+                            condition, body, ..
+                        } => {
                             let cond_chunk = self.emit_expr(condition)?;
-                            output.add_line(&format!("{}while {}:", self.indent(), cond_chunk.code.trim()));
+                            output.add_line(&format!(
+                                "{}while {}:",
+                                self.indent(),
+                                cond_chunk.code.trim()
+                            ));
                             self.indent_level += 1;
                             self.emit_expr_stmt_list(body, &mut output)?;
                             self.indent_level -= 1;
                         }
-                        MirExprStmt::For { variable, iter, body, .. } => {
+                        MirExprStmt::For {
+                            variable,
+                            iter,
+                            body,
+                            ..
+                        } => {
                             let iter_chunk = self.emit_expr(iter)?;
-                            output.add_line(&format!("{}for {} in {}:", self.indent(), variable, iter_chunk.code.trim()));
+                            output.add_line(&format!(
+                                "{}for {} in {}:",
+                                self.indent(),
+                                variable,
+                                iter_chunk.code.trim()
+                            ));
                             self.indent_level += 1;
                             self.emit_expr_stmt_list(body, &mut output)?;
                             self.indent_level -= 1;
@@ -479,12 +580,18 @@ impl CodeEmitter for PythonGenerator {
                 output.add_line(&format!("[{}]", element_strings.join(", ")));
             }
 
-            MirExpr::If { condition, then_branch, else_branch, .. } => {
+            MirExpr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 let cond_chunk = self.emit_expr(condition)?;
                 let then_chunk = self.emit_expr(then_branch)?;
                 let else_chunk = self.emit_expr(else_branch)?;
 
-                output.add_line(&format!("({} if {} else {})",
+                output.add_line(&format!(
+                    "({} if {} else {})",
                     then_chunk.code.trim(),
                     cond_chunk.code.trim(),
                     else_chunk.code.trim()
@@ -495,7 +602,8 @@ impl CodeEmitter for PythonGenerator {
                 let array_chunk = self.emit_expr(array)?;
                 let index_chunk = self.emit_expr(index)?;
 
-                output.add_line(&format!("{}[{}]",
+                output.add_line(&format!(
+                    "{}[{}]",
                     array_chunk.code.trim(),
                     index_chunk.code.trim()
                 ));
@@ -504,11 +612,21 @@ impl CodeEmitter for PythonGenerator {
             MirExpr::Lambda { params, body, .. } => {
                 let body_chunk = self.emit_expr(body)?;
                 let params_str = params.join(", ");
-                output.add_line(&format!("lambda {}: {}", params_str, body_chunk.code.trim()));
+                output.add_line(&format!(
+                    "lambda {}: {}",
+                    params_str,
+                    body_chunk.code.trim()
+                ));
             }
         }
 
         Ok(output)
+    }
+}
+
+impl Default for PythonGenerator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

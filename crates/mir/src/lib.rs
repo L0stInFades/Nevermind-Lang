@@ -9,23 +9,21 @@
 //! - Type information attached to all nodes
 
 mod expr;
-mod stmt;
 mod function;
-mod pattern;
 pub mod lowering;
+mod pattern;
+mod stmt;
 
-pub use expr::{MirExpr, BinOp, UnaryOp, Literal, MirBlock, MirExprStmt};
-pub use stmt::{MirStmt, Param, MirMatchArm};
+pub use expr::{BinOp, Literal, MirBlock, MirExpr, MirExprStmt, UnaryOp};
 pub use function::{MirFunction, MirProgram};
-pub use pattern::{MirPattern};
+pub use pattern::MirPattern;
+pub use stmt::{MirMatchArm, MirStmt, Param};
 
 /// Unique identifier for MIR nodes (re-export from AST crate)
 pub type NodeId = nevermind_ast::NodeId;
 
 /// Lower a typed AST program to MIR
-pub fn lower_program(
-    ast_program: &Vec<nevermind_ast::Stmt>,
-) -> lowering::Result<MirProgram> {
+pub fn lower_program(ast_program: &Vec<nevermind_ast::Stmt>) -> lowering::Result<MirProgram> {
     let mut program = MirProgram::new();
 
     for stmt in ast_program {

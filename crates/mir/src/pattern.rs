@@ -7,16 +7,10 @@ use nevermind_type_checker::Type;
 #[derive(Debug, Clone)]
 pub enum MirPattern {
     /// Wildcard pattern: _
-    Wildcard {
-        id: NodeId,
-    },
+    Wildcard { id: NodeId },
 
     /// Variable pattern: x
-    Variable {
-        name: String,
-        ty: Type,
-        id: NodeId,
-    },
+    Variable { name: String, ty: Type, id: NodeId },
 
     /// Literal pattern: 42, "hello", true
     Literal {

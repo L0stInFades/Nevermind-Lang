@@ -7,39 +7,22 @@ use nevermind_common::Span;
 #[derive(Debug, Clone)]
 pub enum Pattern {
     /// Wildcard pattern (matches anything, _)
-    Wildcard {
-        span: Span,
-    },
+    Wildcard { span: Span },
 
     /// Variable binding pattern
-    Variable {
-        name: String,
-        span: Span,
-    },
+    Variable { name: String, span: Span },
 
     /// Literal pattern
-    Literal {
-        value: Literal,
-        span: Span,
-    },
+    Literal { value: Literal, span: Span },
 
     /// Or pattern (matches if any pattern matches)
-    Or {
-        patterns: Vec<Pattern>,
-        span: Span,
-    },
+    Or { patterns: Vec<Pattern>, span: Span },
 
     /// Tuple pattern
-    Tuple {
-        patterns: Vec<Pattern>,
-        span: Span,
-    },
+    Tuple { patterns: Vec<Pattern>, span: Span },
 
     /// List pattern
-    List {
-        patterns: Vec<Pattern>,
-        span: Span,
-    },
+    List { patterns: Vec<Pattern>, span: Span },
 
     /// List pattern with head and tail
     ListCons {
@@ -117,36 +100,30 @@ impl Pattern {
             Pattern::Wildcard { .. } => vec![],
             Pattern::Variable { name, .. } => vec![name.clone()],
             Pattern::Literal { .. } => vec![],
-            Pattern::Or { patterns, .. } => {
-                patterns.iter()
-                    .flat_map(|p| p.collect_variables())
-                    .collect()
-            }
-            Pattern::Tuple { patterns, .. } => {
-                patterns.iter()
-                    .flat_map(|p| p.collect_variables())
-                    .collect()
-            }
-            Pattern::List { patterns, .. } => {
-                patterns.iter()
-                    .flat_map(|p| p.collect_variables())
-                    .collect()
-            }
+            Pattern::Or { patterns, .. } => patterns
+                .iter()
+                .flat_map(|p| p.collect_variables())
+                .collect(),
+            Pattern::Tuple { patterns, .. } => patterns
+                .iter()
+                .flat_map(|p| p.collect_variables())
+                .collect(),
+            Pattern::List { patterns, .. } => patterns
+                .iter()
+                .flat_map(|p| p.collect_variables())
+                .collect(),
             Pattern::ListCons { head, tail, .. } => {
                 let mut vars = head.collect_variables();
                 vars.extend(tail.collect_variables());
                 vars
             }
-            Pattern::Struct { fields, .. } => {
-                fields.iter()
-                    .flat_map(|f| f.pattern.collect_variables())
-                    .collect()
-            }
+            Pattern::Struct { fields, .. } => fields
+                .iter()
+                .flat_map(|f| f.pattern.collect_variables())
+                .collect(),
             Pattern::Range { .. } => vec![],
             Pattern::Constructor { args, .. } => {
-                args.iter()
-                    .flat_map(|p| p.collect_variables())
-                    .collect()
+                args.iter().flat_map(|p| p.collect_variables()).collect()
             }
         }
     }

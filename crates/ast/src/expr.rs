@@ -2,7 +2,10 @@
 
 use std::fmt;
 
-use crate::{NodeId, op::{BinaryOp, UnaryOp, LogicalOp, ComparisonOp}};
+use crate::{
+    op::{BinaryOp, ComparisonOp, LogicalOp, UnaryOp},
+    NodeId,
+};
 use crate::{Pattern, TypeAnnotation};
 use nevermind_common::Span;
 
@@ -235,13 +238,19 @@ impl fmt::Display for Expr {
         match self {
             Expr::Literal(lit) => write!(f, "{}", lit),
             Expr::Variable { name, .. } => write!(f, "{}", name),
-            Expr::Binary { left, op, right, .. } => {
+            Expr::Binary {
+                left, op, right, ..
+            } => {
                 write!(f, "({} {} {})", left, op.symbol(), right)
             }
-            Expr::Comparison { left, op, right, .. } => {
+            Expr::Comparison {
+                left, op, right, ..
+            } => {
                 write!(f, "({} {} {})", left, op.symbol(), right)
             }
-            Expr::Logical { left, op, right, .. } => {
+            Expr::Logical {
+                left, op, right, ..
+            } => {
                 write!(f, "({} {} {})", left, op.symbol(), right)
             }
             Expr::Unary { op, expr, .. } => {
@@ -266,8 +275,17 @@ impl fmt::Display for Expr {
                 }
                 Ok(())
             }
-            Expr::If { condition, then_branch, else_branch, .. } => {
-                write!(f, "(if {} then {} else {})", condition, then_branch, else_branch)
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                write!(
+                    f,
+                    "(if {} then {} else {})",
+                    condition, then_branch, else_branch
+                )
             }
             Expr::List { elements, .. } => {
                 write!(f, "[")?;
