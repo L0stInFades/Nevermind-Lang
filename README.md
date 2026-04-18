@@ -22,10 +22,10 @@ let data = fetch("https://api.example.com")
 let (result1, result2) = parallel (fetch(url1), fetch(url2))
 
 # Pattern matching - elegant
-match result
-  Ok(value) => print "Success: {value}"
-  Error(err) => print "Error: {err}"
-end
+match result {
+  Ok(value) => print "Success: {value}",
+  Error(err) => print "Error: {err}",
+}
 
 # Pipeline operator - natural flow
 let processed = data
@@ -183,10 +183,10 @@ let events = Stream.from(button_clicks)
 
 ```nevermind
 # In match expressions
-match result
-  Ok(value) => print "Got: {value}"
-  Error(err) => print "Error: {err}"
-end
+match result {
+  Ok(value) => print "Got: {value}",
+  Error(err) => print "Error: {err}",
+}
 
 # In function parameters
 fn get_name({name: n, age: _}) -> String
@@ -242,7 +242,7 @@ let arr = numpy.array([1, 2, 3, 4])
 ### Minimal Punctuation
 
 - No semicolons
-- No curly braces (uses `do...end` with indentation)
+- Blocks use `do...end` with indentation; braces are currently used for `match` arms and map literals
 - No parentheses for single-argument functions
 - Clean, readable operators
 
@@ -280,7 +280,7 @@ if is_valid or is_exception
 
 ## Implementation Status
 
-**Current Version**: 0.5.0 (April 2026)
+**Current Version**: 0.5.0 (pre-1.0 stabilization release, April 2026)
 
 ### ✅ Completed - Full Compilation Pipeline
 - [x] Language specification
@@ -301,11 +301,14 @@ if is_valid or is_exception
 - [x] **End-to-end execution** (`nevermind run` compiles and runs)
 - [x] **Turing-Complete** (proved via Brainfuck interpreter)
 - [x] **Integer division** (`/` → Python `//`, correct floor semantics)
+- [x] **Formatter** (`nevermind fmt` normalizes indentation, blank lines, trailing whitespace)
+- [x] **Linter** (`nevermind lint` runs parse/name/type checks plus style warnings)
+- [x] **CI smoke checks** (`cargo test`, `nevermind fmt --check`, `nevermind lint`, `nevermind run examples/patterns.nm`)
 
 ### ✅ Interactive REPL
 - [x] REPL with full compilation pipeline integration
 - [x] Persistent function/variable definitions across inputs
-- [x] Multi-line input support (`do...end`, `match...end` blocks)
+- [x] Multi-line input support (`do...end` and brace-delimited `match` blocks)
 - [x] REPL commands (`:help`, `:clear`, `:defs`)
 
 ### ✅ Algorithm & Data Structure Examples (17 programs)
@@ -334,7 +337,7 @@ if is_valid or is_exception
 
 ### 📋 Planned
 - [ ] IDE support (VS Code, LSP)
-- [ ] Module system (import/export)
+- [ ] Stable package/module system
 - [ ] Error handling (Result/Option types)
 - [ ] Generics and traits
 - [ ] Package manager
@@ -369,6 +372,15 @@ export PATH=$PATH:$PWD/target/release
 # Check a Nevermind file for errors
 nevermind check example.nm
 
+# Check formatting without changing files
+nevermind fmt --check example.nm
+
+# Rewrite files in-place using the canonical style
+nevermind fmt --write example.nm
+
+# Run static analysis and style checks
+nevermind lint example.nm
+
 # Compile to Python
 nevermind compile example.nm -o output.py
 
@@ -378,6 +390,8 @@ nevermind run example.nm
 # Start the interactive REPL
 nevermind repl
 ```
+
+`nevermind fmt` preserves comments while normalizing indentation, blank lines, trailing whitespace, and the final newline. `nevermind lint` runs the parser, name resolver, and type checker first, then reports formatting drift, tabs, long lines, trailing whitespace, and leftover `TODO` / `FIXME` markers.
 
 ### REPL Session Example
 
@@ -498,11 +512,11 @@ use "http/server"
 
 fn handle_request(req: Request) -> Response
   do
-    match req.path
-      "/api/users" => Response.json(get_users())
-      "/api/data" => Response.json(process_data(req.body))
-      _ => Response.not_found()
-    end
+    match req.path {
+      "/api/users" => Response.json(get_users()),
+      "/api/data" => Response.json(process_data(req.body)),
+      _ => Response.not_found(),
+    }
   end
 
 let server = Server.create(port=8080)

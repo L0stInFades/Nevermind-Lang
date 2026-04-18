@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Module Examples (undocumented)
 - **`greet.nm`**, **`mathutils.nm`**, **`modules.nm`** — module system demonstration
+- **GitHub Actions CI workflow** — runs `cargo test` plus CLI smoke checks for `fmt`, `lint`, and `run examples/patterns.nm`
+
+### Changed
+- Root crate version, CLI `--version`, and REPL banner now converge on `0.5.0`
+- Implementation status docs now describe 0.5.0 as a pre-1.0 stabilization release instead of leaving 0.4.0 and 0.5.0 mixed together
 
 ### Fixed
 - **Integer division** — `/` now correctly generates Python floor division `//` (ensures int/int → int semantics)
@@ -226,13 +231,15 @@ This release marked the completion of the entire compiler frontend pipeline. Nev
 
 ## Roadmap
 
-### 0.4.0 - "Runtime Pipeline" Release (CURRENT)
+### 0.5.0 - "Tooling & Convergence" Release (CURRENT)
 - [x] Complete MIR/Codegen pipeline for all control flow
 - [x] End-to-end compilation and execution
 - [x] Built-in functions (print, len, input, range, str, int)
+- [x] Working `fmt` / `lint` CLI commands
+- [x] Basic CI smoke checks
 - [x] 296 tests passing
 
-### Upcoming (0.5.0)
+### Upcoming (0.6.0)
 - [ ] Standard library expansion
 - [ ] Improved error recovery
 - [ ] REPL enhancements (tab completion, command history, persistent Python session)

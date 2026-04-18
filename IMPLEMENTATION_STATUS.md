@@ -1,12 +1,12 @@
 # Nevermind Implementation Status
 
 **Version**: 0.5.0
-**Last Updated**: 2026-04-15
-**Status**: Algorithm Examples Complete — 17 example programs covering data structures and algorithms
+**Last Updated**: 2026-04-19
+**Status**: Pre-1.0 stabilization release — core compiler works, and the current focus is aligning CLI, docs, examples, tests, diagnostics, and release signals for 1.0 readiness
 
 ## Executive Summary
 
-Nevermind is now **proven to be Turing-complete** with a complete compiler frontend that can successfully compile Nevermind code to Python. The project has achieved a major milestone by implementing all core language features required for universal computation.
+Nevermind is now **proven to be Turing-complete** with a complete compiler frontend that can successfully compile Nevermind code to Python. The project has moved beyond a proof-of-concept frontend: the CLI ships working `compile`, `check`, `run`, `fmt`, `lint`, and `repl` commands, official examples are being kept runnable, release metadata is being converged around the real implementation, and CI now checks tests, formatting, linting, example execution, and strict clippy warnings. It is still a **pre-1.0** language because the standard library, diagnostics, module/package story, and broader ecosystem signals are not yet complete.
 
 ---
 
@@ -96,7 +96,7 @@ Python Interpreter
 ### 📋 Planned Features
 
 - [ ] **Standard Library** - Math, string, collection functions
-- [ ] **Module System** - `import` and `use` statements
+- [ ] **Stable Module System** - package boundaries, re-exports, and a stronger external-module story
 - [ ] **Error Handling** - `try-catch`, `Result` type
 - [ ] **Generics** - Generic type parameters
 - [ ] **Traits** - Type classes and interfaces
@@ -179,6 +179,7 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
 | `examples/hello.nm` | ✅ Compiles & Runs | "Hello, World!" |
 | `examples/math.nm` | ✅ Compiles & Runs | 30 |
 | `examples/functions.nm` | ✅ Compiles & Runs | 8, 120, 55 |
+| `examples/modules.nm` | ✅ Compiles & Runs | 25, 27, 720, 7, Hello/Goodbye greetings |
 | `examples/simple_fn.nm` | ✅ Compiles & Runs | 8 |
 | `examples/variables.nm` | ✅ Compiles & Runs | Alice, 30, 1, [1,2,3,4,5] |
 | `examples/lists.nm` | ✅ Compiles | List literals |
@@ -233,9 +234,10 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
    - Improved error messages needed
 
 4. **Module System**
-   - No import/export support
-   - All code in single file
-   - Need module design
+   - Basic `use "module"` and `from "module" import name` support exists today
+   - Local `.nm` module imports require explicit top-level `export` declarations for imported symbols
+   - Compilation and linting resolve local modules from the caller's base directory and surface broken-module and missing-export diagnostics earlier
+   - Still missing package boundaries, re-exports, and a stable package manager story
 
 ### Design Decisions
 
@@ -258,9 +260,9 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
 
 ## Development Roadmap
 
-### Phase 2: Stdlib & Tooling
+### Phase 2: Tooling Convergence
 
-**Goal**: Make Nevermind practically usable
+**Goal**: Make the current implementation honest, runnable, and repeatable
 
 - [x] **0.4.0 - Runtime Support** (COMPLETED)
   - [x] Execute generated Python code
@@ -274,43 +276,50 @@ Nevermind has been formally proven to be Turing-complete by implementing a Brain
   - [x] Multi-line support (do/end, match/end blocks)
   - [x] REPL commands (:help, :clear, :defs)
 
-- [ ] **0.5.0 - Standard Library & Enhancements**
+- [x] **0.5.0 - Tooling, Docs, and Example Convergence** (COMPLETED)
+  - [x] Wire `fmt` and `lint` into the CLI as real commands
+  - [x] Align README / Quick Start examples with the current parser and tool behavior
+  - [x] Keep official examples runnable against the current compiler
+  - [x] Add basic CI smoke checks for tests, formatting, linting, and example execution
+
+- [ ] **0.6.0 - Standard Library & Diagnostics**
   - [ ] Math functions (sin, cos, sqrt, etc.)
   - [ ] String operations
-  - [ ] Collection operations (map, filter, reduce)
+  - [ ] Collection operations
   - [ ] Improved error messages
   - [ ] REPL enhancements (tab completion, history)
 
-- [ ] **0.6.0 - Module System**
+- [ ] **0.7.0 - Module System**
   - [ ] Import/export
   - [ ] File I/O operations
   - [ ] Package manager design
 
 ### Phase 3: Ecosystem
 
-**Goal**: Production-ready language
+**Goal**: Production-ready language surface and developer experience
 
-- [ ] **0.7.0 - IDE Support**
+- [ ] **0.8.0 - IDE Support**
   - [ ] VS Code extension
   - [ ] Language Server Protocol (LSP)
   - [ ] Syntax highlighting
   - [ ] Code completion
 
-- [ ] **0.8.0 - Advanced Features**
+- [ ] **0.9.0 - Advanced Features**
   - [ ] Generics and traits
   - [ ] Error handling (Result, Option)
   - [ ] Concurrency primitives
   - [ ] Macro system
 
-### Phase 4: Performance & Native
+### Phase 4: 1.0 Readiness
 
-**Goal**: High-performance native compiler
+**Goal**: A credible 1.0 release with converged implementation and release signals
 
 - [ ] **1.0.0 - Production Release**
-  - [ ] LLVM backend
-  - [ ] Native compilation
-  - [ ] Comprehensive stdlib
-  - [ ] Production-tested
+  - [ ] LLVM backend or a clearly documented long-term backend strategy
+  - [ ] A useful standard library for real programs
+  - [ ] Stronger diagnostics and error recovery
+  - [ ] Stable module/package story
+  - [ ] Production-tested workflows and CI coverage
 
 ---
 
@@ -359,11 +368,11 @@ Nevermind has achieved **Turing-completeness** and has a **complete compiler fro
 
 ### Next Steps
 - Expand standard library (math, string, collection functions)
-- Module system (import/export)
+- Stabilize the module/package story and explicit export boundaries
 - IDE support (VS Code extension, LSP)
 
 ---
 
-*Last updated: 2026-02-08*
-*Version: 0.4.0*
-*Status: End-to-End Pipeline Complete*
+*Last updated: 2026-04-19*
+*Version: 0.5.0*
+*Status: Pre-1.0 stabilization release*

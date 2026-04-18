@@ -110,16 +110,16 @@ let result = numbers
 ## Pattern Matching
 
 ```nevermind
-match result
-  Ok(value) => print "Success: {value}"
-  Error(err) => print "Error: {err}"
-end
+match result {
+  Ok(value) => print "Success: {value}",
+  Error(err) => print "Error: {err}",
+}
 
-match number
-  0 => "Zero"
-  1 | 2 | 3 => "Small"
-  _ => "Large"
-end
+match number {
+  0 => "Zero",
+  1 | 2 | 3 => "Small",
+  _ => "Large",
+}
 ```
 
 **Exhaustive checking**: Compiler ensures you handle all cases.
@@ -131,10 +131,10 @@ end
 ```nevermind
 # Option (no nulls!)
 let maybe_name: Option[String] = Some("Alice")
-match maybe_name
-  Some(name) => print "Got: {name}"
-  None => print "Nothing"
-end
+match maybe_name {
+  Some(name) => print "Got: {name}",
+  None => print "Nothing",
+}
 
 # Result (explicit error handling)
 fn divide(a: Int, b: Int) -> Result[Int, String]
@@ -146,13 +146,33 @@ fn divide(a: Int, b: Int) -> Result[Int, String]
   end
 
 # Use it
-match divide(10, 2)
-  Ok(result) => print "Result: {result}"
-  Error(err) => print "Error: {err}"
-end
+match divide(10, 2) {
+  Ok(result) => print "Result: {result}",
+  Error(err) => print "Error: {err}",
+}
 ```
 
 **No null pointer exceptions**: `null` doesn't exist, use `Option` instead.
+
+---
+
+## Tooling
+
+```bash
+# Check syntax and types
+nevermind check hello.nm
+
+# Check formatting without rewriting files
+nevermind fmt --check hello.nm
+
+# Apply the canonical formatter in-place
+nevermind fmt --write hello.nm
+
+# Run static analysis and style checks
+nevermind lint hello.nm
+```
+
+`fmt` preserves comments while normalizing indentation, blank lines, trailing whitespace, and the final newline. `lint` runs parser, name resolution, and type checking first, then reports formatting drift, tabs, long lines, trailing whitespace, and leftover `TODO` / `FIXME` markers.
 
 ---
 
