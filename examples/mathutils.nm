@@ -1,17 +1,17 @@
 # mathutils.nm - reusable math utilities module
 
-fn square(x: Int) -> Int do
-    x * x
+export fn square(x: Int) -> Int do
+  x * x
 end
 
-fn cube(x: Int) -> Int do
-    x * x * x
+export fn cube(x: Int) -> Int do
+  x * x * x
 end
 
-fn factorial(n: Int) -> Int do
-    if n <= 1 then 1 else n * factorial(n - 1) end
+export fn factorial(n: Int) -> Int do
+  if n <= 1 then 1 else n * factorial(n - 1) end
 end
 
-fn abs_val(x: Int) -> Int do
-    if x < 0 then -x else x end
+export fn abs_val(x: Int) -> Int do
+  if x < 0 then -x else x end
 end

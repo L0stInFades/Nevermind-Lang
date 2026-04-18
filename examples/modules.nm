@@ -10,12 +10,15 @@ from "greet" import hello, goodbye
 use "mathutils"
 
 fn main() do
-    # Selectively-imported names used directly
-    print(square(5))
-    print(cube(3))
-    print(factorial(6))
+  # Selectively-imported names used directly
+  print(square(5))
+  print(cube(3))
+  print(factorial(6))
 
-    # Selectively-imported functions from greet.nm
-    print(hello("Nevermind"))
-    print(goodbye("Nevermind"))
+  # Namespace imports still go through the module name
+  print(mathutils.abs_val(-7))
+
+  # Selectively-imported functions from greet.nm
+  print(hello("Nevermind"))
+  print(goodbye("Nevermind"))
 end

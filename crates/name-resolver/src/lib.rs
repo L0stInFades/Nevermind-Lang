@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 //! Name resolution for Nevermind
 //!
 //! This crate provides name resolution functionality for the Nevermind compiler.
@@ -34,15 +36,15 @@
 //! }
 //! ```
 
-pub mod symbol;
-pub mod scope;
-pub mod symbol_table;
 pub mod error;
 pub mod resolver;
+pub mod scope;
+pub mod symbol;
+pub mod symbol_table;
 
 // Re-export common types for convenience
-pub use symbol::{Symbol, SymbolKind};
-pub use scope::Scope;
-pub use symbol_table::SymbolTable;
 pub use error::{NameError, NameErrorKind, Result};
 pub use resolver::NameResolver;
+pub use scope::Scope;
+pub use symbol::{Symbol, SymbolKind};
+pub use symbol_table::SymbolTable;

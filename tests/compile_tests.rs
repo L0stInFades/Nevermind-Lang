@@ -3,6 +3,8 @@
 //! These tests verify that .nm source files compile through the entire pipeline:
 //! Lexer -> Parser -> Name Resolution -> Type Checking -> MIR Lowering -> Python Codegen
 
+use std::path::Path;
+
 /// Helper: compile a source string through the full pipeline and return generated Python
 fn compile_to_python(source: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Lex
@@ -18,7 +20,8 @@ fn compile_to_python(source: &str) -> Result<String, Box<dyn std::error::Error>>
     match resolver.resolve(&stmts) {
         Ok(_) => {}
         Err(errors) => {
-            let msg = errors.iter()
+            let msg = errors
+                .iter()
                 .map(|e| format!("{}: {}", e.span, e.message))
                 .collect::<Vec<_>>()
                 .join("; ");
@@ -34,6 +37,43 @@ fn compile_to_python(source: &str) -> Result<String, Box<dyn std::error::Error>>
     let mir_program = nevermind_mir::lower_program(&stmts)?;
 
     // Code generation
+    let python_code = nevermind_codegen::generate(&mir_program)?;
+
+    Ok(python_code)
+}
+
+/// Helper: compile a source file through the full pipeline using its parent
+/// directory for local module resolution.
+fn compile_file_to_python(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let source = std::fs::read_to_string(path)?;
+
+    let mut lexer = nevermind_lexer::Lexer::new(&source);
+    let tokens = lexer.tokenize()?;
+
+    let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+    let stmts = parser.parse()?;
+
+    let base_dir = path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
+    let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
+    match resolver.resolve(&stmts) {
+        Ok(_) => {}
+        Err(errors) => {
+            let msg = errors
+                .iter()
+                .map(|e| format!("{}: {}", e.span, e.message))
+                .collect::<Vec<_>>()
+                .join("; ");
+            return Err(format!("Name resolution failed: {}", msg).into());
+        }
+    }
+
+    let mut checker = nevermind_type_checker::TypeChecker::new();
+    checker.check(&stmts)?;
+
+    let mir_program = nevermind_mir::lower_program(&stmts)?;
     let python_code = nevermind_codegen::generate(&mir_program)?;
 
     Ok(python_code)
@@ -264,4 +304,16 @@ end
     assert!(python.contains("def greet():"));
     assert!(python.contains("print(\"hi\")"));
     assert!(python.contains("print(\"bye\")"));
+}
+
+#[test]
+fn test_modules_example_compiles_with_explicit_exports() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/modules.nm");
+
+    let python = compile_file_to_python(&path).expect("module example should compile");
+
+    assert!(python.contains("from mathutils import square, cube, factorial"));
+    assert!(python.contains("from greet import hello, goodbye"));
+    assert!(python.contains("import mathutils"));
+    assert!(python.contains("mathutils.abs_val"));
 }

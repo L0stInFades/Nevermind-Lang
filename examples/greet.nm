@@ -1,9 +1,9 @@
 # greet.nm — greeting utilities module
 
-fn hello(name: String) -> String do
-    "Hello, {name}!"
+export fn hello(name: String) -> String do
+  "Hello, {name}!"
 end
 
-fn goodbye(name: String) -> String do
-    "Goodbye, {name}!"
+export fn goodbye(name: String) -> String do
+  "Goodbye, {name}!"
 end

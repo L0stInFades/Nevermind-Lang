@@ -1,13 +1,19 @@
 //! Name resolution for Nevermind AST
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use nevermind_ast::{Expr, Stmt, Pattern};
+use nevermind_ast::{Expr, Pattern, Stmt};
 
-use crate::symbol_table::SymbolTable;
-use crate::symbol::Symbol;
 use crate::error::{NameError, Result};
+use crate::symbol::Symbol;
+use crate::symbol_table::SymbolTable;
+
+#[derive(Debug, Clone)]
+struct ModuleExports {
+    path: PathBuf,
+    symbols: HashMap<String, Symbol>,
+}
 
 /// The name resolver
 pub struct NameResolver {
@@ -17,15 +23,12 @@ pub struct NameResolver {
     /// Collected errors
     errors: Vec<NameError>,
 
-    /// Set of visited functions to detect recursion
-    visited_functions: HashSet<String>,
-
     /// Base directory used to locate imported `.nm` files.
     /// `None` in REPL / in-memory compilation contexts.
     base_dir: Option<PathBuf>,
 
-    /// Set of already-resolved module paths (prevents circular imports).
-    resolved_modules: HashSet<String>,
+    /// Cached exports for local modules that have already been loaded.
+    module_exports: HashMap<String, ModuleExports>,
 }
 
 impl NameResolver {
@@ -34,9 +37,8 @@ impl NameResolver {
         let mut resolver = Self {
             symbol_table: SymbolTable::new(),
             errors: Vec::new(),
-            visited_functions: HashSet::new(),
             base_dir: None,
-            resolved_modules: HashSet::new(),
+            module_exports: HashMap::new(),
         };
         resolver.register_builtins();
         resolver
@@ -50,9 +52,8 @@ impl NameResolver {
         let mut resolver = Self {
             symbol_table: SymbolTable::new(),
             errors: Vec::new(),
-            visited_functions: HashSet::new(),
             base_dir: Some(base_dir),
-            resolved_modules: HashSet::new(),
+            module_exports: HashMap::new(),
         };
         resolver.register_builtins();
         resolver
@@ -106,6 +107,7 @@ impl NameResolver {
     /// Resolve a statement
     fn resolve_statement(&mut self, stmt: &Stmt) -> Result<()> {
         match stmt {
+            Stmt::Export { stmt, .. } => self.resolve_statement(stmt),
             Stmt::Let {
                 name,
                 is_mutable,
@@ -138,12 +140,10 @@ impl NameResolver {
 
                 // Declare parameters
                 for (i, param) in params.iter().enumerate() {
-                    let param_symbol = Symbol::parameter(
-                        param.name.clone(),
-                        i,
-                        nevermind_common::Span::dummy(),
-                    );
-                    self.symbol_table.declare(param.name.clone(), param_symbol)?;
+                    let param_symbol =
+                        Symbol::parameter(param.name.clone(), i, nevermind_common::Span::dummy());
+                    self.symbol_table
+                        .declare(param.name.clone(), param_symbol)?;
                 }
 
                 // Resolve the function body
@@ -204,7 +204,10 @@ impl NameResolver {
             }
 
             Stmt::For {
-                variable, iter, body, ..
+                variable,
+                iter,
+                body,
+                ..
             } => {
                 // Resolve iterator
                 self.resolve_expression(iter)?;
@@ -292,13 +295,14 @@ impl NameResolver {
                 Ok(())
             }
 
-            Stmt::ExprStmt { expr, .. } => {
-                self.resolve_expression(expr)
-            }
+            Stmt::ExprStmt { expr, .. } => self.resolve_expression(expr),
 
-            Stmt::Import { module, symbols, span, .. } => {
-                self.resolve_import(module, symbols.as_deref(), span)
-            }
+            Stmt::Import {
+                module,
+                symbols,
+                span,
+                ..
+            } => self.resolve_import(module, symbols.as_deref(), span),
 
             Stmt::Class { name, members, .. } => {
                 // Declare the class as a type
@@ -319,8 +323,14 @@ impl NameResolver {
                             );
                             self.symbol_table.declare(name.clone(), field_symbol)?;
                         }
-                        nevermind_ast::stmt::ClassMember::Method { name, params, body, .. } => {
-                            let method_symbol = Symbol::function(name.clone(), params.len(), nevermind_common::Span::dummy());
+                        nevermind_ast::stmt::ClassMember::Method {
+                            name, params, body, ..
+                        } => {
+                            let method_symbol = Symbol::function(
+                                name.clone(),
+                                params.len(),
+                                nevermind_common::Span::dummy(),
+                            );
                             self.symbol_table.declare(name.clone(), method_symbol)?;
 
                             // Resolve method body
@@ -333,7 +343,8 @@ impl NameResolver {
                                     i,
                                     nevermind_common::Span::dummy(),
                                 );
-                                self.symbol_table.declare(param.name.clone(), param_symbol)?;
+                                self.symbol_table
+                                    .declare(param.name.clone(), param_symbol)?;
                             }
 
                             self.resolve_expression(body)?;
@@ -363,37 +374,55 @@ impl NameResolver {
         symbols: Option<&[String]>,
         span: &nevermind_common::Span,
     ) -> Result<()> {
-        // Attempt to load the module's top-level declarations from disk and
-        // register them.  If the file can't be found (e.g. it's a Python
-        // stdlib module), we fall through and trust the user's declarations.
-        self.load_module_exports(module);
+        let local_module = self.load_module_exports(module, span)?;
 
         match symbols {
             Some(syms) => {
-                // `from "module" import sym1, sym2`
-                // Ensure each requested symbol is visible in the current scope.
-                // We register it as a plain variable — the actual value/type is
-                // resolved at Python runtime.
-                for sym_name in syms {
-                    if !self.symbol_table.is_defined(sym_name) {
-                        let sym = Symbol::variable(sym_name.clone(), false, span.clone());
-                        // Ignore the error: duplicate is a user mistake caught
-                        // by `scope::insert`, but we prefer a soft warning for
-                        // imports (the Python runtime will enforce correctness).
-                        let _ = self.symbol_table.declare(sym_name.clone(), sym);
+                if let Some(local_module) = local_module.as_ref() {
+                    for sym_name in syms {
+                        let export = match local_module.symbols.get(sym_name).cloned() {
+                            Some(export) => export,
+                            None => {
+                                let mut error = NameError::undefined_import(
+                                    module.to_string(),
+                                    sym_name.clone(),
+                                    span.clone(),
+                                )
+                                .with_context(
+                                    format!("local module resolved to {}", local_module.path.display()),
+                                    None,
+                                );
+
+                                if !local_module.symbols.is_empty() {
+                                    error = error.with_context(
+                                        format!(
+                                            "available exports: {}",
+                                            Self::format_export_list(&local_module.symbols)
+                                        ),
+                                        None,
+                                    );
+                                }
+
+                                return Err(error);
+                            }
+                        };
+
+                        self.declare_imported_symbol(sym_name, &export, span)?;
+                    }
+                } else {
+                    for sym_name in syms {
+                        if !self.symbol_table.is_defined(sym_name) {
+                            let sym = Symbol::variable(sym_name.clone(), false, span.clone());
+                            self.symbol_table.declare(sym_name.clone(), sym)?;
+                        }
                     }
                 }
             }
             None => {
-                // `use "module"` — register the last path segment as a
-                // namespace variable so that `module.symbol` expressions resolve.
-                let namespace = module
-                    .split('/')
-                    .next_back()
-                    .unwrap_or(module);
+                let namespace = module.split('/').next_back().unwrap_or(module);
                 if !self.symbol_table.is_defined(namespace) {
                     let sym = Symbol::variable(namespace.to_string(), false, span.clone());
-                    let _ = self.symbol_table.declare(namespace.to_string(), sym);
+                    self.symbol_table.declare(namespace.to_string(), sym)?;
                 }
             }
         }
@@ -401,81 +430,129 @@ impl NameResolver {
         Ok(())
     }
 
-    /// Load and parse a `.nm` module file, registering its top-level exported
-    /// symbols into the current scope.
+    fn declare_imported_symbol(
+        &mut self,
+        import_name: &str,
+        export: &Symbol,
+        span: &nevermind_common::Span,
+    ) -> Result<()> {
+        let imported = Symbol {
+            name: import_name.to_string(),
+            kind: export.kind.clone(),
+            span: span.clone(),
+            type_: export.type_.clone(),
+        };
+        self.symbol_table.declare(import_name.to_string(), imported)
+    }
+
+    fn format_export_list(symbols: &HashMap<String, Symbol>) -> String {
+        let mut names: Vec<&str> = symbols.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        names.join(", ")
+    }
+
+    fn export_symbol(stmt: &Stmt) -> Option<(String, Symbol)> {
+        match stmt {
+            Stmt::Export { stmt, .. } => match stmt.as_ref() {
+                Stmt::Function {
+                    name, params, span, ..
+                } => Some((
+                    name.clone(),
+                    Symbol::function(name.clone(), params.len(), span.clone()),
+                )),
+                Stmt::Let {
+                    name,
+                    is_mutable,
+                    span,
+                    ..
+                } => Some((
+                    name.clone(),
+                    Symbol::variable(name.clone(), *is_mutable, span.clone()),
+                )),
+                Stmt::TypeAlias { name, span, .. } | Stmt::Class { name, span, .. } => {
+                    Some((name.clone(), Symbol::type_(name.clone(), span.clone())))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn module_file_path(base_dir: &std::path::Path, module: &str) -> PathBuf {
+        module
+            .split('/')
+            .fold(base_dir.to_path_buf(), |path, segment| path.join(segment))
+            .with_extension("nm")
+    }
+
+    /// Load and parse a `.nm` module file, returning its top-level exports.
     ///
-    /// Returns `true` if the module was successfully loaded.
-    /// Silently does nothing when `base_dir` is absent, the file doesn't
-    /// exist, or the module was already processed (cycle guard).
-    fn load_module_exports(&mut self, module: &str) -> bool {
-        // Cycle / already-processed guard.
-        if self.resolved_modules.contains(module) {
-            return false;
+    /// When no local module file exists, this returns `Ok(None)` so external
+    /// Python modules can still flow through to runtime unchanged.
+    fn load_module_exports(
+        &mut self,
+        module: &str,
+        import_span: &nevermind_common::Span,
+    ) -> Result<Option<ModuleExports>> {
+        if let Some(exports) = self.module_exports.get(module) {
+            return Ok(Some(exports.clone()));
         }
 
         let base_dir = match self.base_dir.clone() {
-            Some(d) => d,
-            None => return false,
+            Some(dir) => dir,
+            None => return Ok(None),
         };
 
-        // Convert "math/utils" → "math/utils.nm" (OS-appropriate separator).
-        let rel: String = if cfg!(windows) {
-            module.replace('/', "\\")
-        } else {
-            module.replace('/', "/")
-        };
-        let file_path = base_dir.join(format!("{}.nm", rel));
-
+        let file_path = Self::module_file_path(&base_dir, module);
         if !file_path.exists() {
-            // Module not found on disk — could be a Python stdlib module.
-            // That's fine; Python will validate it at runtime.
-            return false;
+            return Ok(None);
         }
 
-        // Mark as resolved *before* parsing to prevent re-entrant cycles.
-        self.resolved_modules.insert(module.to_string());
+        let source = std::fs::read_to_string(&file_path).map_err(|error| {
+            NameError::module_load_failed(
+                module.to_string(),
+                format!("could not read {}", file_path.display()),
+                import_span.clone(),
+            )
+            .with_context(error.to_string(), None)
+        })?;
 
-        let source = match std::fs::read_to_string(&file_path) {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
+        let mut lexer = nevermind_lexer::Lexer::from_file(&source, file_path.clone());
+        let tokens = lexer.tokenize().map_err(|error| {
+            NameError::module_load_failed(module.to_string(), error.message.clone(), error.span.clone())
+                .with_context(
+                    format!("imported here from '{}'", module),
+                    Some(import_span.clone()),
+                )
+                .with_context(format!("while reading {}", file_path.display()), None)
+        })?;
 
-        // Lex
-        let mut lexer = nevermind_lexer::Lexer::new(&source);
-        let tokens = match lexer.tokenize() {
-            Ok(t) => t,
-            Err(_) => return false,
-        };
-
-        // Parse
         let mut parser = nevermind_parser::Parser::from_tokens(tokens);
-        let stmts = match parser.parse() {
-            Ok(s) => s,
-            Err(_) => return false,
-        };
+        let stmts = parser.parse().map_err(|error| {
+            NameError::module_load_failed(module.to_string(), error.message.clone(), error.span.clone())
+                .with_context(
+                    format!("imported here from '{}'", module),
+                    Some(import_span.clone()),
+                )
+                .with_context(format!("while parsing {}", file_path.display()), None)
+        })?;
 
-        // Register every top-level declaration from the module.
-        // We only look at `fn` and `let`/`var` at the top level — those are
-        // the "public" exports.
+        let mut symbols = HashMap::new();
         for stmt in &stmts {
-            match stmt {
-                Stmt::Function { name, params, span, .. } => {
-                    if !self.symbol_table.is_defined(name) {
-                        let sym = Symbol::function(name.clone(), params.len(), span.clone());
-                        let _ = self.symbol_table.declare(name.clone(), sym);
-                    }
-                }
-                Stmt::Let { name, is_mutable, span, .. } => {
-                    if !self.symbol_table.is_defined(name) {
-                        let sym = Symbol::variable(name.clone(), *is_mutable, span.clone());
-                        let _ = self.symbol_table.declare(name.clone(), sym);
-                    }
-                }
-                _ => {}
+            if let Some((name, symbol)) = Self::export_symbol(stmt) {
+                symbols.insert(name, symbol);
             }
         }
 
-        true
+        let exports = ModuleExports {
+            path: file_path,
+            symbols,
+        };
+
+        self.module_exports
+            .insert(module.to_string(), exports.clone());
+
+        Ok(Some(exports))
     }
 
     /// Resolve an expression
@@ -506,9 +583,7 @@ impl NameResolver {
                 Ok(())
             }
 
-            Expr::Unary { expr, .. } => {
-                self.resolve_expression(expr)
-            }
+            Expr::Unary { expr, .. } => self.resolve_expression(expr),
 
             Expr::Call { callee, args, .. } => {
                 self.resolve_expression(callee)?;
@@ -533,12 +608,10 @@ impl NameResolver {
 
                 // Declare parameters
                 for (i, param) in params.iter().enumerate() {
-                    let param_symbol = Symbol::parameter(
-                        param.name.clone(),
-                        i,
-                        nevermind_common::Span::dummy(),
-                    );
-                    self.symbol_table.declare(param.name.clone(), param_symbol)?;
+                    let param_symbol =
+                        Symbol::parameter(param.name.clone(), i, nevermind_common::Span::dummy());
+                    self.symbol_table
+                        .declare(param.name.clone(), param_symbol)?;
                 }
 
                 // Resolve body
@@ -587,7 +660,9 @@ impl NameResolver {
                 Ok(())
             }
 
-            Expr::Match { scrutinee, arms, .. } => {
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
                 self.resolve_expression(scrutinee)?;
 
                 for arm in arms {
@@ -615,9 +690,7 @@ impl NameResolver {
                 self.resolve_expression(value)
             }
 
-            Expr::MemberAccess { object, .. } => {
-                self.resolve_expression(object)
-            }
+            Expr::MemberAccess { object, .. } => self.resolve_expression(object),
         }
     }
 
@@ -698,9 +771,40 @@ impl Default for NameResolver {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
-    use nevermind_ast::{Expr, Stmt, Parameter};
     use nevermind_ast::Literal;
+    use nevermind_ast::{Expr, Parameter, Stmt};
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new(prefix: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("{}_{}", prefix, unique));
+            fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn parse_statements(source: &str) -> Vec<Stmt> {
+        let mut parser = nevermind_parser::Parser::new(source).unwrap();
+        parser.parse().unwrap()
+    }
 
     #[test]
     fn test_resolve_variable() {
@@ -789,16 +893,14 @@ mod tests {
         // Create a block with inner scope
         let block_expr = Expr::Block {
             id: 2,
-            statements: vec![
-                Stmt::Let {
-                    id: 3,
-                    is_mutable: false,
-                    name: "y".to_string(),
-                    type_annotation: None,
-                    value: Expr::Literal(Literal::Integer(20, nevermind_common::Span::dummy())),
-                    span: nevermind_common::Span::dummy(),
-                },
-            ],
+            statements: vec![Stmt::Let {
+                id: 3,
+                is_mutable: false,
+                name: "y".to_string(),
+                type_annotation: None,
+                value: Expr::Literal(Literal::Integer(20, nevermind_common::Span::dummy())),
+                span: nevermind_common::Span::dummy(),
+            }],
             span: nevermind_common::Span::dummy(),
         };
 
@@ -806,5 +908,87 @@ mod tests {
 
         // Outer variable should still be defined
         assert!(resolver.symbol_table.is_defined("x"));
+    }
+
+    #[test]
+    fn test_selective_import_only_declares_requested_names() {
+        let temp_dir = TestDir::new("nevermind_name_resolver_selective_import");
+        fs::write(
+            temp_dir.path.join("mathutils.nm"),
+            "export fn square(n) do n end\nexport fn cube(n) do n end\n",
+        )
+        .unwrap();
+
+        let statements = parse_statements("from \"mathutils\" import square\n");
+        let mut resolver = NameResolver::with_base_dir(temp_dir.path.clone());
+
+        resolver.resolve(&statements).unwrap();
+
+        assert!(resolver.symbol_table.is_defined("square"));
+        assert!(!resolver.symbol_table.is_defined("cube"));
+    }
+
+    #[test]
+    fn test_missing_local_import_reports_error() {
+        let temp_dir = TestDir::new("nevermind_name_resolver_missing_import");
+        fs::write(
+            temp_dir.path.join("mathutils.nm"),
+            "export fn square(n) do n end\n",
+        )
+        .unwrap();
+
+        let statements = parse_statements("from \"mathutils\" import cube\n");
+        let mut resolver = NameResolver::with_base_dir(temp_dir.path.clone());
+        let errors = resolver.resolve(&statements).unwrap_err();
+
+        assert!(errors
+            .iter()
+            .any(|error| error.message.contains("does not export 'cube'")));
+    }
+
+    #[test]
+    fn test_broken_local_module_reports_error() {
+        let temp_dir = TestDir::new("nevermind_name_resolver_broken_module");
+        fs::write(temp_dir.path.join("broken.nm"), "fn broken( do\nend\n").unwrap();
+
+        let statements = parse_statements("use \"broken\"\n");
+        let mut resolver = NameResolver::with_base_dir(temp_dir.path.clone());
+        let errors = resolver.resolve(&statements).unwrap_err();
+
+        assert!(errors
+            .iter()
+            .any(|error| error.message.contains("Failed to load local module 'broken'")));
+    }
+
+    #[test]
+    fn test_unexported_local_symbol_reports_error() {
+        let temp_dir = TestDir::new("nevermind_name_resolver_unexported_import");
+        fs::write(
+            temp_dir.path.join("mathutils.nm"),
+            "export fn square(n) do n end\nfn helper(n) do n end\n",
+        )
+        .unwrap();
+
+        let statements = parse_statements("from \"mathutils\" import helper\n");
+        let mut resolver = NameResolver::with_base_dir(temp_dir.path.clone());
+        let errors = resolver.resolve(&statements).unwrap_err();
+
+        assert!(errors
+            .iter()
+            .any(|error| error.message.contains("does not export 'helper'")));
+    }
+
+    #[test]
+    fn test_missing_local_module_falls_back_to_external_python_imports() {
+        let temp_dir = TestDir::new("nevermind_name_resolver_external_import");
+        let statements = parse_statements(
+            "from \"json\" import dumps\nuse \"collections\"\n",
+        );
+        let mut resolver = NameResolver::with_base_dir(temp_dir.path.clone());
+
+        resolver.resolve(&statements).unwrap();
+
+        assert!(resolver.symbol_table.is_defined("dumps"));
+        assert!(resolver.symbol_table.is_defined("collections"));
     }
 }

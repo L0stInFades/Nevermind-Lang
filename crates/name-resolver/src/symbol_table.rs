@@ -2,9 +2,9 @@
 
 use std::fmt;
 
+use crate::error::{NameError, Result};
 use crate::scope::Scope;
 use crate::symbol::Symbol;
-use crate::error::{NameError, NameErrorKind, Result};
 
 /// A symbol table managing nested scopes
 #[derive(Clone)]
@@ -102,11 +102,9 @@ impl SymbolTable {
     /// Resolve a symbol name in the current scope chain
     pub fn resolve(&self, name: &str) -> Result<&Symbol> {
         if let Some(scope) = self.scopes.last() {
-            scope
-                .lookup(name)
-                .ok_or_else(|| {
-                    NameError::undefined_variable(name.to_string(), nevermind_common::Span::dummy())
-                })
+            scope.lookup(name).ok_or_else(|| {
+                NameError::undefined_variable(name.to_string(), nevermind_common::Span::dummy())
+            })
         } else {
             Err(NameError::invalid_scope(
                 "no active scope",
@@ -118,11 +116,9 @@ impl SymbolTable {
     /// Resolve a symbol name in the current scope only (not parent scopes)
     pub fn resolve_local(&self, name: &str) -> Result<&Symbol> {
         if let Some(scope) = self.scopes.last() {
-            scope
-                .lookup_local(name)
-                .ok_or_else(|| {
-                    NameError::undefined_variable(name.to_string(), nevermind_common::Span::dummy())
-                })
+            scope.lookup_local(name).ok_or_else(|| {
+                NameError::undefined_variable(name.to_string(), nevermind_common::Span::dummy())
+            })
         } else {
             Err(NameError::invalid_scope(
                 "no active scope",
@@ -203,7 +199,7 @@ impl Default for SymbolTable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::SymbolKind;
+    use crate::{NameErrorKind, SymbolKind};
 
     #[test]
     fn test_symbol_table_creation() {
@@ -229,7 +225,11 @@ mod tests {
         let mut table = SymbolTable::new();
         let span = nevermind_common::Span::dummy();
 
-        let symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span);
+        let symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span,
+        );
         table.declare("x".to_string(), symbol).unwrap();
 
         let resolved = table.resolve("x").unwrap();
@@ -242,7 +242,10 @@ mod tests {
         let result = table.resolve("nonexistent");
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err().kind, NameErrorKind::UndefinedVariable(_)));
+        assert!(matches!(
+            result.unwrap_err().kind,
+            NameErrorKind::UndefinedVariable(_)
+        ));
     }
 
     #[test]
@@ -251,7 +254,11 @@ mod tests {
         let span = nevermind_common::Span::dummy();
 
         // Declare in global scope
-        let global_symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
+        let global_symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span.clone(),
+        );
         table.declare("x".to_string(), global_symbol).unwrap();
 
         // Enter nested scope

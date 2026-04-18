@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::symbol::Symbol;
 use crate::error::{NameError, NameErrorKind};
+use crate::symbol::Symbol;
 
 /// A lexical scope
 #[derive(Clone)]
@@ -42,7 +42,8 @@ impl Scope {
         if self.symbols.contains_key(&name) {
             let existing = &self.symbols[&name];
             // Allow user definitions to shadow built-in functions (which are functions with dummy spans)
-            let is_builtin = existing.is_function() && existing.span == nevermind_common::Span::dummy();
+            let is_builtin =
+                existing.is_function() && existing.span == nevermind_common::Span::dummy();
             if is_builtin {
                 self.symbols.insert(name, symbol);
                 return Ok(());
@@ -51,7 +52,11 @@ impl Scope {
                 NameErrorKind::DuplicateDefinition(name.clone()),
                 format!("Cannot declare '{}', already defined in this scope", name),
                 symbol.span.clone(),
-            ).with_context(format!("previous definition of '{}' is here", name), Some(existing.span.clone())));
+            )
+            .with_context(
+                format!("previous definition of '{}' is here", name),
+                Some(existing.span.clone()),
+            ));
         }
 
         self.symbols.insert(name, symbol);
@@ -139,7 +144,11 @@ mod tests {
         let mut scope = Scope::global();
         let span = nevermind_common::Span::dummy();
 
-        let symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
+        let symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span.clone(),
+        );
         scope.insert("x".to_string(), symbol).unwrap();
 
         let found = scope.lookup("x");
@@ -151,11 +160,32 @@ mod tests {
     fn test_scope_duplicate_definition() {
         let mut scope = Scope::global();
         // Use non-dummy spans so the duplicate check isn't bypassed by the built-in shadowing rule
-        let loc = nevermind_common::SourceLocation { file: None, line: 1, column: 1, offset: 0 };
-        let span = nevermind_common::Span { start: loc.clone(), end: nevermind_common::SourceLocation { file: None, line: 1, column: 5, offset: 4 } };
+        let loc = nevermind_common::SourceLocation {
+            file: None,
+            line: 1,
+            column: 1,
+            offset: 0,
+        };
+        let span = nevermind_common::Span {
+            start: loc.clone(),
+            end: nevermind_common::SourceLocation {
+                file: None,
+                line: 1,
+                column: 5,
+                offset: 4,
+            },
+        };
 
-        let symbol1 = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
-        let symbol2 = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span);
+        let symbol1 = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span.clone(),
+        );
+        let symbol2 = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span,
+        );
 
         scope.insert("x".to_string(), symbol1).unwrap();
         let result = scope.insert("x".to_string(), symbol2);
@@ -168,10 +198,14 @@ mod tests {
         let span = nevermind_common::Span::dummy();
 
         let mut parent = Scope::global();
-        let symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
+        let symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span.clone(),
+        );
         parent.insert("x".to_string(), symbol).unwrap();
 
-        let mut child = Scope::new(Some(parent), 1);
+        let child = Scope::new(Some(parent), 1);
         assert!(child.lookup("x").is_some());
         assert!(child.lookup_local("x").is_none());
     }
@@ -181,11 +215,19 @@ mod tests {
         let span = nevermind_common::Span::dummy();
 
         let mut parent = Scope::global();
-        let parent_symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: false }, span.clone());
+        let parent_symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: false },
+            span.clone(),
+        );
         parent.insert("x".to_string(), parent_symbol).unwrap();
 
         let mut child = Scope::new(Some(parent), 1);
-        let child_symbol = Symbol::new("x".to_string(), SymbolKind::Variable { is_mutable: true }, span);
+        let child_symbol = Symbol::new(
+            "x".to_string(),
+            SymbolKind::Variable { is_mutable: true },
+            span,
+        );
         child.insert("x".to_string(), child_symbol).unwrap();
 
         // Child should find its own symbol

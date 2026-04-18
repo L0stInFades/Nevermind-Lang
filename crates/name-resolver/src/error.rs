@@ -12,6 +12,9 @@ pub enum NameErrorKind {
     /// Undefined variable or function
     UndefinedVariable(String),
 
+    /// Missing export from an imported module
+    UndefinedImport { module: String, symbol: String },
+
     /// Duplicate definition in the same scope
     DuplicateDefinition(String),
 
@@ -27,11 +30,11 @@ pub enum NameErrorKind {
     /// Continue statement outside of loop
     InvalidContinue,
 
+    /// Failed to load a local module during import resolution
+    ModuleLoadFailed(String),
+
     /// Incorrect number of arguments
-    ArgumentCountMismatch {
-        expected: usize,
-        found: usize,
-    },
+    ArgumentCountMismatch { expected: usize, found: usize },
 }
 
 impl fmt::Display for NameErrorKind {
@@ -39,6 +42,9 @@ impl fmt::Display for NameErrorKind {
         match self {
             NameErrorKind::UndefinedVariable(name) => {
                 write!(f, "undefined variable or function '{}'", name)
+            }
+            NameErrorKind::UndefinedImport { module, symbol } => {
+                write!(f, "module '{}' does not export '{}'", module, symbol)
             }
             NameErrorKind::DuplicateDefinition(name) => {
                 write!(f, "duplicate definition of '{}'", name)
@@ -54,6 +60,9 @@ impl fmt::Display for NameErrorKind {
             }
             NameErrorKind::InvalidContinue => {
                 write!(f, "continue statement outside of loop")
+            }
+            NameErrorKind::ModuleLoadFailed(module) => {
+                write!(f, "failed to load local module '{}'", module)
             }
             NameErrorKind::ArgumentCountMismatch { expected, found } => {
                 write!(f, "expected {} argument(s), found {}", expected, found)
@@ -117,6 +126,18 @@ impl NameError {
         )
     }
 
+    /// Create a missing import error
+    pub fn undefined_import(module: String, symbol: String, span: Span) -> Self {
+        Self::new(
+            NameErrorKind::UndefinedImport {
+                module: module.clone(),
+                symbol: symbol.clone(),
+            },
+            format!("Module '{}' does not export '{}'", module, symbol),
+            span,
+        )
+    }
+
     /// Create a duplicate definition error
     pub fn duplicate_definition(name: String, span: Span) -> Self {
         Self::new(
@@ -128,11 +149,7 @@ impl NameError {
 
     /// Create an invalid scope error
     pub fn invalid_scope(message: impl Into<String>, span: Span) -> Self {
-        Self::new(
-            NameErrorKind::InvalidScope,
-            message,
-            span,
-        )
+        Self::new(NameErrorKind::InvalidScope, message, span)
     }
 
     /// Create an invalid return error
@@ -158,6 +175,15 @@ impl NameError {
         Self::new(
             NameErrorKind::InvalidContinue,
             "continue statement can only be used inside a loop".to_string(),
+            span,
+        )
+    }
+
+    /// Create a local module load failure
+    pub fn module_load_failed(module: String, detail: String, span: Span) -> Self {
+        Self::new(
+            NameErrorKind::ModuleLoadFailed(module.clone()),
+            format!("Failed to load local module '{}': {}", module, detail),
             span,
         )
     }

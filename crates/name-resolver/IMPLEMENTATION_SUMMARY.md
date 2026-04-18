@@ -121,7 +121,7 @@ Main name resolution:
 - `Return` - Validate function context
 - `Break/Continue` - Validate loop context
 - `ExprStmt` - Delegate to expression resolution
-- `Import` - TODO for future module support
+- `Import` - Resolve namespace and selective imports, including local module export validation
 - `Class` - Declare class with member scopes
 
 **Expression Resolution:**
