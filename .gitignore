@@ -38,3 +38,4 @@ __pycache__/
 .Python
 venv/
 env/
+/examples/*.py

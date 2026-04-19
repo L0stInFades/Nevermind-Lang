@@ -5,7 +5,7 @@ mod linting;
 
 use std::fs;
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -257,6 +257,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
     println!("Nevermind REPL v{}", env!("CARGO_PKG_VERSION"));
     println!("Type :help for help, exit or Ctrl-D to quit\n");
 
+    let repl_base_dir = std::env::current_dir()?;
     let mut definitions: Vec<String> = Vec::new();
     let mut input_buffer = String::new();
 
@@ -345,9 +346,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Classify: definition or expression
-        let is_def = complete_input.starts_with("fn ")
-            || complete_input.starts_with("let ")
-            || complete_input.starts_with("var ");
+        let is_def = is_repl_definition(&complete_input);
 
         if is_def {
             // Validate by compiling all defs + new def
@@ -361,7 +360,7 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
             // Add a dummy main so codegen succeeds
             source.push_str("fn main() do 0 end\n");
 
-            match compile_source_silent(&source) {
+            match compile_repl_source(&source, &repl_base_dir) {
                 Ok(_) => {
                     definitions.push(complete_input);
                 }
@@ -379,10 +378,10 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
             source.push_str(&complete_input);
             source.push('\n');
 
-            match compile_source_silent(&source) {
+            match compile_repl_source(&source, &repl_base_dir) {
                 Ok(python_code) => {
                     let code = strip_main_guard(&python_code);
-                    match execute_python_code(&code) {
+                    match execute_python_code(&code, Some(&repl_base_dir)) {
                         Ok(output) => {
                             let output = output.trim_end();
                             if !output.is_empty() {
@@ -402,6 +401,28 @@ fn repl() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn is_repl_definition(input: &str) -> bool {
+    let input = input.trim_start();
+    input.starts_with("fn ")
+        || input.starts_with("let ")
+        || input.starts_with("var ")
+        || input.starts_with("use ")
+        || input.starts_with("from ")
+}
+
+fn compile_repl_source(
+    source: &str,
+    base_dir: &Path,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut lexer = nevermind_lexer::Lexer::new(source);
+    let tokens = lexer.tokenize()?;
+    let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+    let statements = parser.parse()?;
+
+    compile_module_deps(&statements, base_dir)?;
+    compile_source_silent_with_base(source, Some(base_dir.to_path_buf()))
 }
 
 /// Recursively compile all local `.nm` module dependencies referenced by
@@ -502,42 +523,11 @@ fn compile_source_silent_with_base(
     Ok(python_code)
 }
 
-/// Compile source code silently, returning the generated Python code.
-fn compile_source_silent(source: &str) -> Result<String, Box<dyn std::error::Error>> {
-    // Lex
-    let mut lexer = nevermind_lexer::Lexer::new(source);
-    let tokens = lexer.tokenize()?;
-
-    // Parse
-    let mut parser = nevermind_parser::Parser::from_tokens(tokens);
-    let statements = parser.parse()?;
-
-    // Name resolution
-    let mut resolver = nevermind_name_resolver::NameResolver::new();
-    if let Err(errors) = resolver.resolve(&statements) {
-        let msgs: Vec<String> = errors.iter().map(|e| e.message.clone()).collect();
-        return Err(msgs.join("; ").into());
-    }
-
-    // Type checking
-    let mut checker = nevermind_type_checker::TypeChecker::new();
-    checker.check(&statements)?;
-
-    // Lower to MIR
-    let mir_program = nevermind_mir::lower_program(&statements)?;
-
-    // Code generation
-    let python_code = nevermind_codegen::generate(&mir_program)?;
-
-    Ok(python_code)
-}
-
 /// Execute Python code and return its stdout output.
-fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let temp_dir = std::env::temp_dir();
-    let temp_file = temp_dir.join("nevermind_repl.py");
-    fs::write(&temp_file, code)?;
-
+fn execute_python_code(
+    code: &str,
+    base_dir: Option<&Path>,
+) -> Result<String, Box<dyn std::error::Error>> {
     let python_cmds = if cfg!(windows) {
         vec!["python", "python3", "py"]
     } else {
@@ -546,9 +536,12 @@ fn execute_python_code(code: &str) -> Result<String, Box<dyn std::error::Error>>
 
     let mut last_err = None;
     for python_cmd in &python_cmds {
-        let result = std::process::Command::new(python_cmd)
-            .arg(&temp_file)
-            .output();
+        let mut command = std::process::Command::new(python_cmd);
+        command.arg("-c").arg(code);
+        if let Some(base_dir) = base_dir {
+            command.current_dir(base_dir);
+        }
+        let result = command.output();
         match result {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -766,4 +759,60 @@ fn fmt(inputs: Vec<PathBuf>, write: bool, check: bool) -> Result<(), Box<dyn std
 /// Lint Nevermind files
 fn lint(inputs: Vec<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
     linting::lint_paths(inputs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new(prefix: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!("{}_{}", prefix, unique));
+            fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn repl_treats_imports_as_persistent_definitions() {
+        assert!(is_repl_definition("use \"mathutils\""));
+        assert!(is_repl_definition("from \"mathutils\" import square"));
+        assert!(!is_repl_definition("print square(2)"));
+    }
+
+    #[test]
+    fn repl_executes_local_module_imports_from_base_dir() {
+        let temp_dir = TestDir::new("nevermind_repl_local_imports");
+        fs::write(
+            temp_dir.path.join("mathutils.nm"),
+            "export fn square(n) do n * n end\n",
+        )
+        .unwrap();
+
+        let python = compile_repl_source(
+            "from \"mathutils\" import square\nprint square(2)\n",
+            &temp_dir.path,
+        )
+        .unwrap();
+
+        assert!(temp_dir.path.join("mathutils.py").exists());
+
+        let output = execute_python_code(&strip_main_guard(&python), Some(&temp_dir.path)).unwrap();
+        assert_eq!(output.trim(), "4");
+    }
 }

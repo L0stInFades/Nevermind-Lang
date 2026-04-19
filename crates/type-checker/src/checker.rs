@@ -16,6 +16,7 @@ use nevermind_common::Span;
 struct FlowInfo {
     ty: Type,
     always_returns: bool,
+    always_produces_value: bool,
 }
 
 impl FlowInfo {
@@ -23,6 +24,7 @@ impl FlowInfo {
         Self {
             ty,
             always_returns: false,
+            always_produces_value: true,
         }
     }
 
@@ -30,6 +32,7 @@ impl FlowInfo {
         Self {
             ty,
             always_returns: true,
+            always_produces_value: true,
         }
     }
 }
@@ -158,6 +161,28 @@ impl TypeChecker {
                     let expected_return = self.unifier.apply(&declared_return);
                     let body_ty = self.unifier.apply(&body_result.ty);
 
+                    if !body_result.always_produces_value
+                        && expected_return != Type::Unit
+                        && !expected_return.is_var()
+                    {
+                        let mut error = TypeError::missing_return(
+                            name.clone(),
+                            expected_return.clone(),
+                            ast_helpers::get_span(body),
+                        );
+                        if let Some(span) = ret_ann.as_ref().map(|ann| ann.span.clone()) {
+                            error = error.with_context(
+                                format!(
+                                    "function '{}' declares return type {}",
+                                    name,
+                                    expected_return.display_name()
+                                ),
+                                Some(span),
+                            );
+                        }
+                        return Err(error);
+                    }
+
                     if body_ty == Type::Unit && expected_return != Type::Unit && !expected_return.is_var() {
                         let mut error = TypeError::missing_return(
                             name.clone(),
@@ -222,6 +247,8 @@ impl TypeChecker {
                     Ok(FlowInfo {
                         ty: self.unifier.apply(&then_result.ty),
                         always_returns: then_result.always_returns && else_result.always_returns,
+                        always_produces_value: then_result.always_produces_value
+                            && else_result.always_produces_value,
                     })
                 } else {
                     Ok(FlowInfo::new(Type::Unit))
@@ -296,12 +323,18 @@ impl TypeChecker {
                 }
 
                 if let Some(first_result) = arm_results.first() {
+                    let is_exhaustive = arms
+                        .iter()
+                        .any(|arm| arm.guard.is_none() && !arm.pattern.is_refutable());
                     for result in &arm_results[1..] {
                         self.unifier.unify(&first_result.ty, &result.ty, span)?;
                     }
                     Ok(FlowInfo {
                         ty: self.unifier.apply(&first_result.ty),
-                        always_returns: arm_results.iter().all(|result| result.always_returns),
+                        always_returns: is_exhaustive
+                            && arm_results.iter().all(|result| result.always_returns),
+                        always_produces_value: is_exhaustive
+                            && arm_results.iter().all(|result| result.always_produces_value),
                     })
                 } else {
                     Ok(FlowInfo::new(Type::Unit))
@@ -563,6 +596,8 @@ impl TypeChecker {
                 Ok(FlowInfo {
                     ty: self.unifier.apply(&then_result.ty),
                     always_returns: then_result.always_returns && else_result.always_returns,
+                    always_produces_value: then_result.always_produces_value
+                        && else_result.always_produces_value,
                 })
             }
 
@@ -657,13 +692,19 @@ impl TypeChecker {
 
                 // All arms must have the same type
                 if let Some(first_result) = arm_results.first() {
+                    let is_exhaustive = arms
+                        .iter()
+                        .any(|arm| arm.guard.is_none() && !arm.pattern.is_refutable());
                     for result in &arm_results[1..] {
                         self.unifier
                             .unify(&first_result.ty, &result.ty, &ast_helpers::get_span(expr))?;
                     }
                     Ok(FlowInfo {
                         ty: self.unifier.apply(&first_result.ty),
-                        always_returns: arm_results.iter().all(|result| result.always_returns),
+                        always_returns: is_exhaustive
+                            && arm_results.iter().all(|result| result.always_returns),
+                        always_produces_value: is_exhaustive
+                            && arm_results.iter().all(|result| result.always_produces_value),
                     })
                 } else {
                     Ok(FlowInfo::new(Type::Unit))
@@ -1040,6 +1081,35 @@ mod tests {
         }
     }
 
+    fn int_pattern(value: i64) -> Pattern {
+        Pattern::Literal {
+            value: Literal::Integer(value, Span::dummy()),
+            span: Span::dummy(),
+        }
+    }
+
+    fn wildcard_pattern() -> Pattern {
+        Pattern::Wildcard {
+            span: Span::dummy(),
+        }
+    }
+
+    fn match_expr(arms: Vec<(Pattern, Option<Expr>, Expr)>) -> Expr {
+        Expr::Match {
+            id: 108,
+            scrutinee: Box::new(int_expr(1)),
+            arms: arms
+                .into_iter()
+                .map(|(pattern, guard, body)| nevermind_ast::expr::MatchArm {
+                    pattern,
+                    guard: guard.map(Box::new),
+                    body: Box::new(body),
+                })
+                .collect(),
+            span: Span::dummy(),
+        }
+    }
+
     fn function_with_body(
         name: &str,
         return_type: Option<TypeAnnotation>,
@@ -1167,6 +1237,79 @@ mod tests {
                         condition: bool_expr(true),
                         then_branch: vec![return_stmt(Some(int_expr(1)))],
                         else_branch: None,
+                        span: Span::dummy(),
+                    },
+                    expr_stmt(int_expr(2)),
+                ],
+                span: Span::dummy(),
+            },
+        );
+
+        checker.check(&[stmt]).unwrap();
+    }
+
+    #[test]
+    fn test_non_exhaustive_match_expression_reports_missing_return() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            match_expr(vec![(int_pattern(1), None, int_expr(1))]),
+        );
+
+        let err = checker.check(&[stmt]).unwrap_err();
+
+        assert!(matches!(err.kind, crate::error::TypeErrorKind::MissingReturn { .. }));
+        assert!(err.message.contains("not all paths in function 'foo' return Int"));
+    }
+
+    #[test]
+    fn test_guarded_wildcard_match_expression_reports_missing_return() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            match_expr(vec![(wildcard_pattern(), Some(bool_expr(false)), int_expr(1))]),
+        );
+
+        let err = checker.check(&[stmt]).unwrap_err();
+
+        assert!(matches!(err.kind, crate::error::TypeErrorKind::MissingReturn { .. }));
+        assert!(err.message.contains("not all paths in function 'foo' return Int"));
+    }
+
+    #[test]
+    fn test_match_with_wildcard_arm_satisfies_declared_return_type() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            match_expr(vec![
+                (int_pattern(1), None, int_expr(1)),
+                (wildcard_pattern(), None, int_expr(2)),
+            ]),
+        );
+
+        checker.check(&[stmt]).unwrap();
+    }
+
+    #[test]
+    fn test_non_exhaustive_match_statement_can_fall_through_to_later_value() {
+        let mut checker = TypeChecker::new();
+        let stmt = function_with_body(
+            "foo",
+            Some(int_annotation()),
+            Expr::Block {
+                id: 109,
+                statements: vec![
+                    Stmt::Match {
+                        id: 110,
+                        scrutinee: int_expr(1),
+                        arms: vec![nevermind_ast::stmt::MatchArm {
+                            pattern: int_pattern(1),
+                            guard: None,
+                            body: int_expr(1),
+                        }],
                         span: Span::dummy(),
                     },
                     expr_stmt(int_expr(2)),
