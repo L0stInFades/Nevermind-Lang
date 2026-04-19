@@ -1,378 +1,96 @@
 # Nevermind Implementation Status
 
-**Version**: 0.5.0
-**Last Updated**: 2026-04-19
-**Status**: Pre-1.0 stabilization release — core compiler works, and the current focus is aligning CLI, docs, examples, tests, diagnostics, and release signals for 1.0 readiness
+**Version**: 1.0.0  
+**Last Updated**: 2026-04-19  
+**Status**: 1.0.0 release
 
-## Executive Summary
+## Summary
 
-Nevermind is now **proven to be Turing-complete** with a complete compiler frontend that can successfully compile Nevermind code to Python. The project has moved beyond a proof-of-concept frontend: the CLI ships working `compile`, `check`, `run`, `fmt`, `lint`, and `repl` commands, official examples are being kept runnable, release metadata is being converged around the real implementation, and CI now checks tests, formatting, linting, example execution, and strict clippy warnings. It is still a **pre-1.0** language because the standard library, diagnostics, module/package story, and broader ecosystem signals are not yet complete.
+Nevermind 1.0.0 ships a working Rust compiler that lowers `.nm` programs to Python and exposes real `compile`, `check`, `run`, `fmt`, `lint`, and `repl` commands. This is an intentionally narrow 1.0 release: module behavior, diagnostics, examples, tests, CI, and documentation are aligned to the implementation that actually exists today.
 
----
+## Verified Commands
 
-## Compiler Pipeline Status
+The following commands are the current stability baseline and are expected to keep passing together:
 
-### ✅ Phase 1: Complete Frontend (100% Done)
-
-```
-Source Code (.nm)
-    ↓
-[1] Lexer ✅
-    → Tokens (with proper indentation)
-    ↓
-[2] Parser ✅
-    → AST (Abstract Syntax Tree)
-    ↓
-[3] Name Resolver ✅
-    → Resolved AST (with scope tracking)
-    ↓
-[4] Type Checker ✅
-    → Typed AST (Hindley-Milner inference)
-    ↓
-[5] MIR Lowering ✅
-    → MIR (Mid-level Intermediate Representation)
-    ↓
-[6] Code Generator ✅
-    → Python Code (.py)
-    ↓
-Python Interpreter
-    → Execution
+```bash
+cargo test
+cargo run -- fmt --check examples/hello.nm
+cargo run -- lint examples/hello.nm
+cargo run -- run examples/patterns.nm
+cargo run -- lint examples/modules.nm
+cargo run -- run examples/modules.nm
+cargo clippy -- -D warnings
 ```
 
-### Component Status Matrix
-
-| Component | Implementation | Tests | Coverage | Status |
-|-----------|----------------|-------|----------|--------|
-| **Lexer** | Complete | 108 | 100% | ✅ Production Ready |
-| **Parser** | Complete | 100+ | 100% | ✅ Production Ready |
-| **Name Resolver** | Complete | 21 | 100% | ✅ Production Ready |
-| **Type Checker** | Complete | 30 | 100% | ✅ Production Ready |
-| **MIR Lowering** | Complete | - | - | ✅ Production Ready |
-| **Python CodeGen** | Complete | - | - | ✅ Production Ready |
-| **CLI Tools** | Complete | - | - | ✅ Production Ready |
-| **REPL** | Complete | - | - | ✅ Production Ready |
-| **Standard Lib** | Partial | - | - | 🚧 In Progress |
+## Implemented Surface
 
-**Total Test Count**: 296 tests with 100% pass rate
+### Compiler Pipeline
 
----
+- Lexer
+- Parser
+- Name resolution
+- Type checking
+- MIR lowering
+- Python code generation
 
-## Language Features Status
+### Language Features In Regular Use
 
-### ✅ Fully Implemented
+- `let` and `var`
+- function definitions and calls
+- lists, indexing, and indexed mutation
+- `if`, `while`, and `for`
+- `match` with guards
+- `break`, `continue`, and `return`
+- lambdas
+- pipeline operator `|>`
+- explicit function return type checking
 
-#### Core Features
-- [x] **Variables** - `let` and `var` declarations
-- [x] **Functions** - Function definitions and calls
-- [x] **Literals** - Integer, Float, String, Boolean, Null, Char
-- [x] **Operators** - All arithmetic, comparison, logical, and bitwise operators
-- [x] **Arrays/Lists** - List literals `[1, 2, 3]`
-- [x] **Array Indexing** - `array[index]` syntax
-- [x] **If Expressions** - `if condition then expr else expr end`
-- [x] **Type Inference** - Full Hindley-Milner type inference
-- [x] **Pattern Matching** - Basic pattern support
-- [x] **Comments** - `#`, `//`, `/* */` styles
+### Tooling
 
-#### Advanced Features
-- [x] **Lambda Functions** - Anonymous functions with `|params| body` syntax
-- [x] **Function Composition** - Pipeline operator `|>`
-- [x] **Block Expressions** - `do...end` blocks with statements
-- [x] **Match Expressions** - Pattern matching with guards
-- [x] **String Interpolation** - Embedded expressions in strings
-- [x] **Indentation-Based** - Python-like significant indentation
+- `compile` writes Python output
+- `run` compiles and executes with Python
+- `check` runs parse, resolve, and type checks without codegen
+- `fmt` enforces the current source style
+- `lint` runs semantic checks plus style warnings
+- `repl` keeps definitions across inputs and resolves imports from the current working directory
 
-### ✅ Now Fully Implemented (v0.4.0)
+## Module System Status
 
-#### Control Flow
-- [x] **While loops** - Compiled to Python `while` loops
-- [x] **For loops** - Compiled to Python `for` loops
-- [x] **Break/Continue** - Full support in MIR and codegen
-- [x] **Return statements** - Explicit returns in functions
+The current module system is intentionally narrow:
 
-#### I/O Operations
-- [x] **print function** - Built-in, compiles to Python `print()`
-- [x] **println function** - Built-in, compiles to Python `print()`
+- Local `.nm` modules are resolved relative to the importing file.
+- Imported names from local modules must come from explicit top-level `export` declarations.
+- If no local `.nm` file exists, the import is treated as an external Python import.
+- `run` and the REPL recursively precompile local module dependencies before execution.
+- Nested local module imports now generate package-qualified Python imports so resolve/check/compile/run all agree on the same module target.
 
-### 📋 Planned Features
+This is the supported behavior today. Re-exports, package boundaries, and a broader package system are not part of the current shipped surface.
 
-- [ ] **Standard Library** - Math, string, collection functions
-- [ ] **Stable Module System** - package boundaries, re-exports, and a stronger external-module story
-- [ ] **Error Handling** - `try-catch`, `Result` type
-- [ ] **Generics** - Generic type parameters
-- [ ] **Traits** - Type classes and interfaces
-- [ ] **Macros** - Compile-time metaprogramming
-- [ ] **Async/Await** - Implicit async execution
-- [ ] **Concurrency** - `parallel`, `async` primitives
+## Release References
 
----
+- Stable boundary: [docs/STABLE_BOUNDARY.md](./docs/STABLE_BOUNDARY.md)
+- Runtime contract: [docs/RUNTIME_CONTRACT.md](./docs/RUNTIME_CONTRACT.md)
+- Release checklist: [docs/RELEASE_CHECKLIST_1_0.md](./docs/RELEASE_CHECKLIST_1_0.md)
 
-## Technical Achievements
+## Current Limitations
 
-### 🧠 Turing Completeness Proof
+The following are not implemented or not ready to be advertised as supported features:
 
-**Status**: ✅ PROVEN
+- package manager
+- debugger
+- async runtime
+- concurrency primitives
+- generics or traits
+- broad `Result` / `Option` standard-library ergonomics
+- stable re-export and package-boundary semantics
 
-Nevermind has been formally proven to be Turing-complete by implementing a Brainfuck interpreter. This demonstrates that Nevermind can compute any computable function.
-
-**Proof Location**: `examples/docs/TURING_COMPLETE.md`
+The standard library is still small, and diagnostics are still being tightened around real edge cases.
 
-**Key Implementation**:
-- `examples/brainfuck_simple.nm` - Brainfuck interpreter
-- Demonstrates: array access, arithmetic, conditionals, functions
-- Satisfies all Turing-completeness requirements
+## Current 1.0 Focus
 
-### 🐛 Critical Bugs Fixed
+Post-1.0 maintenance should stay focused on:
 
-#### 1. MIR Operator Mapping Bug (CRITICAL)
-**Issue**: All binary operators (`*`, `/`, `-`, etc.) were mapped to `Add` during MIR lowering
-
-**Impact**: Code like `10 * 30 * 5` compiled as `((10 + 30) + 5)`
-
-**Fix**:
-- Added `map_binary_op()` function in `crates/mir/src/lowering.rs`
-- Added `map_comparison_op()` for comparison operators
-- Added `BinOp::Pow` variant for power operator
-- Updated Python codegen to handle all operators
-
-**Files Modified**:
-- `crates/mir/src/lowering.rs`
-- `crates/mir/src/expr.rs`
-- `crates/codegen/src/python.rs`
-
-#### 2. Lexer Operator Parsing
-**Issue**: Consecutive operators like `+-*/` not parsed correctly
-
-**Fix**: Rewrote `lex_operator_or_keyword()` to use progressive lookahead (3-char, 2-char, 1-char)
-
-**Result**: Can now parse all valid operator sequences correctly
-
-#### 3. Array Indexing Support
-**Issue**: No support for accessing array elements
-
-**Implementation**:
-- Added `Expr::Index` to AST
-- Added postfix index parsing in parser
-- Added Index support in name resolution, type checking, MIR, codegen
-
-**Result**: Full array indexing support with `array[index]` syntax
-
----
-
-## Test Coverage
-
-### Unit Tests by Component
-
-| Component | Test Count | Pass Rate | Location |
-|-----------|------------|-----------|----------|
-| Lexer | 108 | 100% | `crates/lexer/tests/lexer_tests.rs` |
-| Parser | 100+ | 100% | `crates/parser/tests/` |
-| Name Resolver | 21 | 100% | `crates/name-resolver/tests/` |
-| Type Checker | 30 | 100% | `crates/type-checker/tests/` |
-| **Compile Tests** | 17 | 100% | `tests/compile_tests.rs` |
-| **Edge Cases** | 4 | 100% | `tests/edge_cases.rs` |
-| **Total** | **296** | **100%** | **Workspace** |
-
-### Integration Tests
-
-| Example | Status | Output |
-|---------|--------|--------|
-| `examples/hello.nm` | ✅ Compiles & Runs | "Hello, World!" |
-| `examples/math.nm` | ✅ Compiles & Runs | 30 |
-| `examples/functions.nm` | ✅ Compiles & Runs | 8, 120, 55 |
-| `examples/modules.nm` | ✅ Compiles & Runs | 25, 27, 720, 7, Hello/Goodbye greetings |
-| `examples/simple_fn.nm` | ✅ Compiles & Runs | 8 |
-| `examples/variables.nm` | ✅ Compiles & Runs | Alice, 30, 1, [1,2,3,4,5] |
-| `examples/lists.nm` | ✅ Compiles | List literals |
-| `examples/brainfuck_simple.nm` | ✅ Compiles | BF interpreter |
-
----
-
-## Performance Metrics
-
-### Compiler Performance
-
-| Operation | Time | Notes |
-|-----------|------|-------|
-| Lexer | < 1ms | For typical source files |
-| Parser | < 5ms | Recursive descent |
-| Name Resolution | < 2ms | Single pass |
-| Type Checking | < 10ms | Hindley-Milner |
-| MIR Lowering | < 5ms | Direct transformation |
-| Code Generation | < 10ms | Python output |
-| **Total** | **< 50ms** | For typical programs |
-
-### Generated Code Quality
-
-**Characteristics**:
-- Readable Python code
-- Preserves program structure
-- Proper operator precedence
-- Type-safe operations
-
-**Limitations**:
-- No optimization passes yet
-- Verbose parentheses for safety
-- No minification or compression
-
----
-
-## Known Limitations
-
-### Current Implementation Limits
-
-1. **Loop Execution** - ✅ RESOLVED in v0.4.0
-   - While, for loops compile to Python
-   - Break/continue supported
-
-2. **Standard Library**
-   - Built-in functions: print, println, len, input, range, str, int
-   - More stdlib functions needed
-
-3. **Error Recovery**
-   - Compiler stops at first error
-   - No multi-error reporting
-   - Improved error messages needed
-
-4. **Module System**
-   - Basic `use "module"` and `from "module" import name` support exists today
-   - Local `.nm` module imports require explicit top-level `export` declarations for imported symbols
-   - Compilation and linting resolve local modules from the caller's base directory and surface broken-module and missing-export diagnostics earlier
-   - Still missing package boundaries, re-exports, and a stable package manager story
-
-### Design Decisions
-
-1. **Python Backend Only**
-   - Currently compiles to Python
-   - Planned: LLVM, WASM backends
-   - Rationale: Quick bootstrapping
-
-2. **Python Execution**
-   - `nevermind run` compiles then executes via Python interpreter
-   - Cross-platform: tries python, python3, py (Windows)
-   - Rationale: Quick bootstrapping before native runtime
-
-3. **Minimal Stdlib**
-   - Only language features implemented
-   - Planned: Comprehensive stdlib
-   - Rationale: Focus on compiler correctness
-
----
-
-## Development Roadmap
-
-### Phase 2: Tooling Convergence
-
-**Goal**: Make the current implementation honest, runnable, and repeatable
-
-- [x] **0.4.0 - Runtime Support** (COMPLETED)
-  - [x] Execute generated Python code
-  - [x] Implement while/for loop execution
-  - [x] Add print function and built-in functions
-  - [x] Add basic I/O operations (print, input)
-
-- [x] **Interactive REPL** (COMPLETED in v0.4.0)
-  - [x] Full pipeline integration (lex → parse → resolve → typecheck → MIR → codegen)
-  - [x] Persistent definitions across inputs
-  - [x] Multi-line support (do/end, match/end blocks)
-  - [x] REPL commands (:help, :clear, :defs)
-
-- [x] **0.5.0 - Tooling, Docs, and Example Convergence** (COMPLETED)
-  - [x] Wire `fmt` and `lint` into the CLI as real commands
-  - [x] Align README / Quick Start examples with the current parser and tool behavior
-  - [x] Keep official examples runnable against the current compiler
-  - [x] Add basic CI smoke checks for tests, formatting, linting, and example execution
-
-- [ ] **0.6.0 - Standard Library & Diagnostics**
-  - [ ] Math functions (sin, cos, sqrt, etc.)
-  - [ ] String operations
-  - [ ] Collection operations
-  - [ ] Improved error messages
-  - [ ] REPL enhancements (tab completion, history)
-
-- [ ] **0.7.0 - Module System**
-  - [ ] Import/export
-  - [ ] File I/O operations
-  - [ ] Package manager design
-
-### Phase 3: Ecosystem
-
-**Goal**: Production-ready language surface and developer experience
-
-- [ ] **0.8.0 - IDE Support**
-  - [ ] VS Code extension
-  - [ ] Language Server Protocol (LSP)
-  - [ ] Syntax highlighting
-  - [ ] Code completion
-
-- [ ] **0.9.0 - Advanced Features**
-  - [ ] Generics and traits
-  - [ ] Error handling (Result, Option)
-  - [ ] Concurrency primitives
-  - [ ] Macro system
-
-### Phase 4: 1.0 Readiness
-
-**Goal**: A credible 1.0 release with converged implementation and release signals
-
-- [ ] **1.0.0 - Production Release**
-  - [ ] LLVM backend or a clearly documented long-term backend strategy
-  - [ ] A useful standard library for real programs
-  - [ ] Stronger diagnostics and error recovery
-  - [ ] Stable module/package story
-  - [ ] Production-tested workflows and CI coverage
-
----
-
-## Contributing
-
-### How to Help
-
-We need contributions in:
-
-1. **Runtime Implementation**
-   - Execute generated Python code
-   - Implement loop runtime
-   - Add stdlib functions
-
-2. **Testing**
-   - Add integration tests
-   - Test edge cases
-   - Performance benchmarks
-
-3. **Documentation**
-   - Write tutorials
-   - Create examples
-   - Improve docs
-
-4. **Tooling**
-   - REPL development
-   - VS Code extension
-   - Debugger
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
----
-
-## Conclusion
-
-Nevermind has achieved **Turing-completeness** and has a **complete compiler frontend** that can successfully compile Nevermind programs to Python. The project is now ready to move from "proof of concept" to "practical language" by implementing runtime support, standard library, and developer tooling.
-
-### Key Achievements
-- Complete end-to-end compilation pipeline (Lexer -> Parser -> Name Resolution -> Type Checking -> MIR -> Python Codegen)
-- Turing-completeness proven via Brainfuck interpreter
-- 296 tests with 100% pass rate
-- All control flow compiled to Python (if/while/for/match/return/break/continue)
-- Built-in function support (print, len, range, input, str, int, etc.)
-- Recursive function support with type annotations
-- `nevermind run` compiles and executes in one step
-
-### Next Steps
-- Expand standard library (math, string, collection functions)
-- Stabilize the module/package story and explicit export boundaries
-- IDE support (VS Code extension, LSP)
-
----
-
-*Last updated: 2026-04-19*
-*Version: 0.5.0*
-*Status: Pre-1.0 stabilization release*
+- keeping module resolution, checking, code generation, and runtime behavior consistent
+- improving return-type and module diagnostics where real mismatches still appear
+- ensuring examples, README claims, tests, and CI only describe verified behavior
+- adding targeted regression tests around real user-facing failures

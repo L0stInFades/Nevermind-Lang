@@ -5,6 +5,23 @@ All notable changes to the Nevermind programming language will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-04-19
+
+### Added
+- `docs/STABLE_BOUNDARY.md` to freeze the supported 1.0 surface.
+- `docs/RUNTIME_CONTRACT.md` to document the real compile-and-run contract.
+- `docs/RELEASE_CHECKLIST_1_0.md` as the 1.0 release gate record.
+- Runtime regression coverage for nested local `from`, nested local `use`, and same-name relative module precedence.
+- Type-checker regression coverage for non-exhaustive `if` / `match` statements that fall through to later values.
+
+### Changed
+- Root crate version, CLI `--version`, and REPL banner now converge on `1.0.0`.
+- README and implementation status now describe Nevermind as an intentionally scoped `1.0.0` release instead of a pre-1.0 stabilization build.
+
+### Fixed
+- Nested local namespace imports now preserve the Nevermind module binding name in generated Python (`import pkg.bar as bar`).
+- Nested local imports continue to resolve relative to the importing module at runtime, matching compile-time resolution.
+
 ## [0.5.0] - 2026-04-15
 
 ### Added
@@ -231,7 +248,14 @@ This release marked the completion of the entire compiler frontend pipeline. Nev
 
 ## Roadmap
 
-### 0.5.0 - "Tooling & Convergence" Release (CURRENT)
+### 1.0.0 - "Converged Python Backend" Release (CURRENT)
+- [x] Stable boundary frozen and documented
+- [x] Runtime contract documented
+- [x] Release checklist fully green
+- [x] Nested local module runtime behavior aligned with compile-time semantics
+- [x] Root release messaging and implementation status aligned to the shipped surface
+
+### 0.5.0 - "Tooling & Convergence" Release
 - [x] Complete MIR/Codegen pipeline for all control flow
 - [x] End-to-end compilation and execution
 - [x] Built-in functions (print, len, input, range, str, int)
@@ -239,12 +263,12 @@ This release marked the completion of the entire compiler frontend pipeline. Nev
 - [x] Basic CI smoke checks
 - [x] 296 tests passing
 
-### Upcoming (0.6.0)
+### Upcoming (1.1.0+)
 - [ ] Standard library expansion
 - [ ] Improved error recovery
 - [ ] REPL enhancements (tab completion, command history, persistent Python session)
 
-### Future (1.0.0)
+### Future
 - [ ] IDE support (VS Code extension, LSP)
 - [ ] Package manager
 - [ ] Debugger

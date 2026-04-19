@@ -145,7 +145,7 @@ fn compile(
     // Each imported module is compiled to a .py file in the same directory
     // so Python can find it at runtime.
     compile_module_deps(&statements, &base_dir)?;
-    let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir);
+    let mut resolver = nevermind_name_resolver::NameResolver::with_base_dir(base_dir.clone());
     match resolver.resolve(&statements) {
         Ok(()) => {}
         Err(errors) => {
@@ -171,7 +171,10 @@ fn compile(
     println!("  ✓ MIR lowering passed");
 
     // Code generation
-    let python_code = nevermind_codegen::generate(&mir_program)?;
+    let python_code = nevermind_codegen::generate_with_context(
+        &mir_program,
+        nevermind_codegen::PythonModuleContext::new(base_dir.clone(), None),
+    )?;
 
     println!("  ✓ Code generation passed");
 
@@ -422,7 +425,17 @@ fn compile_repl_source(
     let statements = parser.parse()?;
 
     compile_module_deps(&statements, base_dir)?;
-    compile_source_silent_with_base(source, Some(base_dir.to_path_buf()))
+    compile_source_silent_with_base(source, Some(base_dir.to_path_buf()), None)
+}
+
+fn qualify_local_module(current_module: Option<&str>, module: &str) -> String {
+    match current_module
+        .and_then(|current| current.rsplit_once('/').map(|(dir, _)| dir))
+        .filter(|dir| !dir.is_empty())
+    {
+        Some(prefix) => format!("{prefix}/{module}"),
+        None => module.to_string(),
+    }
 }
 
 /// Recursively compile all local `.nm` module dependencies referenced by
@@ -436,12 +449,13 @@ fn compile_module_deps(
     base_dir: &std::path::Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut visited = std::collections::HashSet::new();
-    compile_module_deps_inner(stmts, base_dir, &mut visited)
+    compile_module_deps_inner(stmts, base_dir, None, &mut visited)
 }
 
 fn compile_module_deps_inner(
     stmts: &[nevermind_ast::Stmt],
     base_dir: &std::path::Path,
+    current_module: Option<&str>,
     visited: &mut std::collections::HashSet<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for stmt in stmts {
@@ -450,7 +464,8 @@ fn compile_module_deps_inner(
             _ => continue,
         };
 
-        if visited.contains(module.as_str()) {
+        let resolved_module = qualify_local_module(current_module, module);
+        if visited.contains(&resolved_module) {
             continue;
         }
 
@@ -466,7 +481,7 @@ fn compile_module_deps_inner(
         }
 
         // Mark before recursing to guard against cycles.
-        visited.insert(module.clone());
+        visited.insert(resolved_module.clone());
 
         let source = fs::read_to_string(&source_path)?;
 
@@ -481,10 +496,19 @@ fn compile_module_deps_inner(
             .parent()
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|| base_dir.to_path_buf());
-        compile_module_deps_inner(&sub_stmts, &sub_base, visited)?;
+        compile_module_deps_inner(
+            &sub_stmts,
+            &sub_base,
+            Some(resolved_module.as_str()),
+            visited,
+        )?;
 
         // Now compile this module to Python.
-        let python = compile_source_silent_with_base(&source, Some(sub_base.clone()))?;
+        let python = compile_source_silent_with_base(
+            &source,
+            Some(sub_base.clone()),
+            Some(resolved_module.clone()),
+        )?;
 
         // Output path mirrors the source path: .nm → .py
         let out_path = source_path.with_extension("py");
@@ -498,6 +522,7 @@ fn compile_module_deps_inner(
 fn compile_source_silent_with_base(
     source: &str,
     base_dir: Option<std::path::PathBuf>,
+    current_module: Option<String>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut lexer = nevermind_lexer::Lexer::new(source);
     let tokens = lexer.tokenize()?;
@@ -505,8 +530,8 @@ fn compile_source_silent_with_base(
     let mut parser = nevermind_parser::Parser::from_tokens(tokens);
     let statements = parser.parse()?;
 
-    let mut resolver = match base_dir {
-        Some(dir) => nevermind_name_resolver::NameResolver::with_base_dir(dir),
+    let mut resolver = match &base_dir {
+        Some(dir) => nevermind_name_resolver::NameResolver::with_base_dir(dir.clone()),
         None => nevermind_name_resolver::NameResolver::new(),
     };
     if let Err(errors) = resolver.resolve(&statements) {
@@ -518,7 +543,13 @@ fn compile_source_silent_with_base(
     checker.check(&statements)?;
 
     let mir_program = nevermind_mir::lower_program(&statements)?;
-    let python_code = nevermind_codegen::generate(&mir_program)?;
+    let python_code = match base_dir {
+        Some(dir) => nevermind_codegen::generate_with_context(
+            &mir_program,
+            nevermind_codegen::PythonModuleContext::new(dir, current_module),
+        )?,
+        None => nevermind_codegen::generate(&mir_program)?,
+    };
 
     Ok(python_code)
 }
@@ -814,5 +845,34 @@ mod tests {
 
         let output = execute_python_code(&strip_main_guard(&python), Some(&temp_dir.path)).unwrap();
         assert_eq!(output.trim(), "4");
+    }
+
+    #[test]
+    fn compile_module_deps_qualifies_nested_local_imports() {
+        let temp_dir = TestDir::new("nevermind_nested_module_codegen");
+        let pkg_dir = temp_dir.path.join("pkg");
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(
+            temp_dir.path.join("main.nm"),
+            "from \"pkg/foo\" import read_value\nprint read_value()\n",
+        )
+        .unwrap();
+        fs::write(
+            pkg_dir.join("foo.nm"),
+            "from \"bar\" import value\nexport fn read_value() do value end\n",
+        )
+        .unwrap();
+        fs::write(pkg_dir.join("bar.nm"), "export let value = 42\n").unwrap();
+
+        let source = fs::read_to_string(temp_dir.path.join("main.nm")).unwrap();
+        let mut lexer = nevermind_lexer::Lexer::new(&source);
+        let tokens = lexer.tokenize().unwrap();
+        let mut parser = nevermind_parser::Parser::from_tokens(tokens);
+        let statements = parser.parse().unwrap();
+
+        compile_module_deps(&statements, &temp_dir.path).unwrap();
+
+        let foo_python = fs::read_to_string(pkg_dir.join("foo.py")).unwrap();
+        assert!(foo_python.contains("from pkg.bar import value"));
     }
 }

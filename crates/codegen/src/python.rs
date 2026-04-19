@@ -1,19 +1,66 @@
 //! Python code generator
 
+use std::path::PathBuf;
+
 use super::emit::Result;
 use super::{BytecodeChunk, CodeEmitter};
 use nevermind_mir::{
     BinOp, Literal, MirExpr, MirExprStmt, MirFunction, MirProgram, MirStmt, UnaryOp,
 };
 
+#[derive(Debug, Clone)]
+pub struct PythonModuleContext {
+    pub base_dir: PathBuf,
+    pub current_module: Option<String>,
+}
+
+impl PythonModuleContext {
+    pub fn new(base_dir: PathBuf, current_module: Option<String>) -> Self {
+        Self {
+            base_dir,
+            current_module,
+        }
+    }
+
+    fn local_module_path(&self, module: &str) -> PathBuf {
+        module
+            .split('/')
+            .fold(self.base_dir.clone(), |path, segment| path.join(segment))
+            .with_extension("nm")
+    }
+
+    fn qualify_local_module(&self, module: &str) -> String {
+        match self
+            .current_module
+            .as_deref()
+            .and_then(|current| current.rsplit_once('/').map(|(dir, _)| dir))
+            .filter(|dir| !dir.is_empty())
+        {
+            Some(prefix) => format!("{prefix}/{module}"),
+            None => module.to_string(),
+        }
+    }
+}
+
 /// Python code generator
 pub struct PythonGenerator {
     pub indent_level: usize,
+    module_context: Option<PythonModuleContext>,
 }
 
 impl PythonGenerator {
     pub fn new() -> Self {
-        Self { indent_level: 0 }
+        Self {
+            indent_level: 0,
+            module_context: None,
+        }
+    }
+
+    pub fn with_module_context(module_context: PythonModuleContext) -> Self {
+        Self {
+            indent_level: 0,
+            module_context: Some(module_context),
+        }
     }
 
     pub fn generate(&mut self, program: &MirProgram) -> Result<String> {
@@ -27,6 +74,18 @@ impl PythonGenerator {
 
     fn output_line(&self, output: &mut BytecodeChunk, text: &str) {
         output.add_line(&format!("{}{}", self.indent(), text));
+    }
+
+    fn python_import_path(&self, module: &str) -> String {
+        if let Some(module_context) = &self.module_context {
+            if module_context.local_module_path(module).exists() {
+                return module_context
+                    .qualify_local_module(module)
+                    .replace('/', ".");
+            }
+        }
+
+        module.replace('/', ".")
     }
 
     fn emit_literal(&self, literal: &Literal) -> String {
@@ -294,13 +353,10 @@ impl PythonGenerator {
             MirStmt::Import {
                 module, symbols, ..
             } => {
-                // Convert Nevermind path separators to Python dot notation.
-                // "math/utils" -> "math.utils"
-                let py_module = module.replace('/', ".");
+                let py_module = self.python_import_path(module);
 
                 match symbols {
                     Some(syms) if !syms.is_empty() => {
-                        // from "math/utils" import sqrt, exp
                         let syms_str = syms.join(", ");
                         self.output_line(
                             output,
@@ -308,13 +364,11 @@ impl PythonGenerator {
                         );
                     }
                     _ => {
-                        // use "math"        -> import math
-                        // use "http/server" -> import http.server as server
-                        if module.contains('/') {
-                            let alias = module.split('/').next_back().unwrap_or(module.as_str());
-                            self.output_line(output, &format!("import {} as {}", py_module, alias));
-                        } else {
+                        let alias = module.split('/').next_back().unwrap_or(module.as_str());
+                        if py_module == alias {
                             self.output_line(output, &format!("import {}", py_module));
+                        } else {
+                            self.output_line(output, &format!("import {} as {}", py_module, alias));
                         }
                     }
                 }
